@@ -1,0 +1,43 @@
+{
+  "upstream": "https://github.com/martinus/unordered_dense",
+  "commit": "7c58a8b7a48e790fe72f6508eb3b46317cbba9d5",
+  "workloads": [
+    "fuzz_insert_erase",
+    "fuzz_string"
+  ],
+  "corpus_files": 363,
+  "bflat_cases_per_configuration": 1089,
+  "configurations": [
+    "O2 default",
+    "ASan+UBSan, mmap disabled, forced incremental migration with 1 group per step"
+  ],
+  "reserve_modes": [
+    "none",
+    "exact observed peak",
+    "observed peak + ceil(peak/8)"
+  ],
+  "coverage_guided_fuzzing": false,
+  "entire_upstream_test_suite": false,
+  "original_compile": "FAIL: void marker compatibility",
+  "fixed_header_sha256": "0771e3be0b98f1bf20e83b5e2d68156ab6336d56d4580c6b2f7502b593d60755",
+  "original_header_sha256": "84c0d8a82f094b41f726b47053a82190c5932a58c59e24fdec1d9c87783ca16d",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "ankerl_corpus_both_configurations_passed": true,
+  "full_unit_configurations_passed": [
+    "avalanching",
+    "avalanching_boost",
+    "api",
+    "api_tiers",
+    "api_incremental",
+    "diff",
+    "diff_incremental",
+    "diff_scalar",
+    "asan_api",
+    "asan_diff",
+    "sse2_diff",
+    "tiered_policy"
+  ],
+  "corpus_bytes_verified_unchanged": true,
+  "patches_diff_checked": true
+}

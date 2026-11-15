@@ -8,18 +8,9 @@
 //   * an 8-bit overflow byte per group (bit hash % 8) for an early miss,
 //   * triangular ("quadratic") probing over groups,
 //   * SSE2 / NEON group match,
-// with the memory management of sflat_hash_map:
-//   * any group count (not a power of two); home group by fastrange
-//     (high 64 bits of the 128-bit product hash * groups),
-//   * reserve(n) gives ceil(n / 0.875) slots, rounded up to 15-slot groups,
-//   * growth: small tables (below BFLAT_GROW_AT_ONCE_BELOW bytes) grow at
-//     once; larger tables grow with incremental migration (old and new arrays
-//     live together; each insert moves a batch of old groups); tiered growth
-//     factor 2x / 1.5x / 1.25x by table size,
-//   * Linux + std::allocator: arrays of 2 MiB or more are mmap'ed, the old
-//     element pages behind the migration front are released with
-//     MADV_DONTNEED, and THP hints are given (MADV_HUGEPAGE near the front,
-//     MADV_NOHUGEPAGE ahead of it, MADV_COLLAPSE at the end).
+// with separate mmap-backed arrays, incremental migration, page release,
+// and THP hints. Arbitrary group counts with tiered growth; retain the
+// two-stage insertion and Boost-style anti-drift rehash trigger.
 //
 // See README.md for the design, the deviations from boost and sflat, and the
 // changed guarantees (iterator invalidation during migration).
@@ -28,6 +19,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -60,14 +52,19 @@
 #if !defined(BFLAT_USE_THP)
 #define BFLAT_USE_THP 1
 #endif
-// Growth tiers by the size of the current table in bytes (elements plus
-// metadata), as in sflat.
-#if !defined(BFLAT_GROW_2X_BELOW)
-#define BFLAT_GROW_2X_BELOW (2ULL << 30)
+// Thresholds count current element plus metadata capacity bytes.
+#ifndef BFLAT_GROW_2X_BELOW
+#define BFLAT_GROW_2X_BELOW (256ULL << 20)
 #endif
-#if !defined(BFLAT_GROW_1_5X_BELOW)
-#define BFLAT_GROW_1_5X_BELOW (10ULL << 30)
+#ifndef BFLAT_GROW_1_5X_BELOW
+#define BFLAT_GROW_1_5X_BELOW (2ULL << 30)
 #endif
+#ifndef BFLAT_GROW_1_25X_BELOW
+#define BFLAT_GROW_1_25X_BELOW (16ULL << 30)
+#endif
+static_assert(BFLAT_GROW_2X_BELOW <= BFLAT_GROW_1_5X_BELOW &&
+              BFLAT_GROW_1_5X_BELOW <= BFLAT_GROW_1_25X_BELOW,
+              "growth thresholds must be ordered");
 // Tables smaller than this many bytes move all elements in the insert that
 // starts growth. 0: always incremental.
 #if !defined(BFLAT_GROW_AT_ONCE_BELOW)
@@ -82,12 +79,6 @@
 // 0 = boost's movemask emulation (vand + vzip + vaddv).
 #if !defined(BFLAT_NEON_SHRN)
 #define BFLAT_NEON_SHRN 1
-#endif
-// Insert fast path: 1 = one metadata load for the fingerprint match and the
-// available mask of the home group; 0 = boost order (find, then a second
-// probe for an available slot).
-#if !defined(BFLAT_INSERT_ONE_LOAD)
-#define BFLAT_INSERT_ONE_LOAD 1
 #endif
 // Element prefetch in find: 0 none, 1 boost (on a match, before the key
 // compare), 2 sflat (home group elements before the metadata load).
@@ -149,7 +140,9 @@ template <typename Hash, typename = void>
 struct hash_is_avalanching_nested : std::false_type {};
 template <typename Hash>
 struct hash_is_avalanching_nested<Hash, std::void_t<typename Hash::is_avalanching>>
-    : std::integral_constant<bool, Hash::is_avalanching::value> {};
+    : std::integral_constant<bool,
+          std::conditional_t<std::is_void<typename Hash::is_avalanching>::value,
+                             std::true_type, typename Hash::is_avalanching>::value> {};
 template <typename Hash>
 struct hash_is_avalanching
 #if defined(BFLAT_HAS_BOOST_AVALANCHING)
@@ -178,10 +171,9 @@ inline uint64_t mulx(uint64_t x) noexcept {
 #endif
 }
 
-// Home group: fastrange on the full 64-bit hash (high half of hash * n).
-// Monotonic in the hash, so a key has its home at the same relative
-// position in tables of any size (ordered migration relies on this).
-inline size_t fastrange(uint64_t h, size_t n) noexcept {
+// Monotonic range reduction for arbitrary group counts.
+// This remains monotonic, as required by ordered page reclamation.
+inline size_t home_group(uint64_t h, size_t n) noexcept {
 #if defined(__SIZEOF_INT128__)
   return static_cast<size_t>((static_cast<__uint128_t>(h) * n) >> 64);
 #else
@@ -245,7 +237,7 @@ struct alignas(16) group15 {
     return static_cast<Mask>(_mm_movemask_epi8(_mm_cmpeq_epi8(v, _mm_setzero_si128()))) & kAll;
   }
   static BFLAT_FORCEINLINE Mask match_occupied(Vec v) noexcept {
-    return ~match_available(v) & kAll;
+    return ~(match(v, 0) | match(v, 1)) & kAll;
   }
 #elif defined(BFLAT_NEON) && BFLAT_NEON_SHRN
   using Mask = uint64_t;
@@ -264,7 +256,7 @@ struct alignas(16) group15 {
     return narrow(vceqzq_u8(v)) & kAll;
   }
   static BFLAT_FORCEINLINE Mask match_occupied(Vec v) noexcept {
-    return narrow(vtstq_u8(v, v)) & kAll;
+    return ~(match(v, 0) | match(v, 1)) & kAll;
   }
 #elif defined(BFLAT_NEON)
   // boost's NEON code: simde movemask emulation.
@@ -293,7 +285,7 @@ struct alignas(16) group15 {
     return movemask(vceqq_u8(v, vdupq_n_u8(0))) & kAll;
   }
   static BFLAT_FORCEINLINE Mask match_occupied(Vec v) noexcept {
-    return movemask(vcgtq_u8(v, vdupq_n_u8(0))) & kAll;
+    return ~(match(v, 0) | match(v, 1)) & kAll;
   }
 #else
   // Portable: a 15-bit mask from a byte loop.
@@ -313,7 +305,7 @@ struct alignas(16) group15 {
   }
   static BFLAT_FORCEINLINE Mask match_available(const Vec& v) noexcept { return match(v, 0); }
   static BFLAT_FORCEINLINE Mask match_occupied(const Vec& v) noexcept {
-    return ~match_available(v) & kAll;
+    return ~(match(v, 0) | match(v, 1)) & kAll;
   }
 #endif
 
@@ -348,7 +340,7 @@ struct alignas(16) group15 {
   }
   BFLAT_FORCEINLINE void set(unsigned pos, uint8_t rh) noexcept { m[pos] = rh; }
   BFLAT_FORCEINLINE void reset(unsigned pos) noexcept { m[pos] = 0; }
-  BFLAT_FORCEINLINE bool is_occupied(unsigned pos) const noexcept { return m[pos] != 0; }
+  BFLAT_FORCEINLINE bool is_occupied(unsigned pos) const noexcept { return m[pos] > 1; }
   // Clear slots 0..14, keep the overflow byte.
   BFLAT_FORCEINLINE void clear_slots_keep_overflow() noexcept {
     const unsigned char o = m[N];
@@ -365,12 +357,7 @@ struct alignas(64) EmptyGroups {
 };
 inline const EmptyGroups kEmptyGroups{};
 
-// Probe sequence over n groups (any n). Triangular steps, as boost's
-// pow2_quadratic_prober, taken modulo n. Triangular numbers modulo n visit
-// every residue only when n is a power of two, so after n - 1 triangular
-// steps the sequence continues with n linear steps; then every group has
-// been visited. In practice an insert stops after a few steps; the linear
-// tail only bounds the worst case.
+// Triangular prefix; a bounded linear tail guarantees coverage for any n.
 struct prober {
   size_t pos;
   size_t step = 0;
@@ -819,6 +806,7 @@ class unordered_flat_map {
     free_old();
     if (ng_) {
       std::memset(static_cast<void*>(groups_), 0, ng_ * sizeof(group));
+      groups_[ng_ - 1].m[N - 1] = 1;
       set_limits();
     }
     size_ = 0;
@@ -879,9 +867,9 @@ class unordered_flat_map {
   }
 
   // ---------------------------------------------------------- hash policy
-  size_type bucket_count() const noexcept { return ng_ * N; }
+  size_type bucket_count() const noexcept { return ng_ ? ng_ * N - 1 : 0; }
   float load_factor() const noexcept {
-    return ng_ ? static_cast<float>(size_) / static_cast<float>(ng_ * N) : 0.0f;
+    return ng_ ? static_cast<float>(size_) / static_cast<float>(bucket_count()) : 0.0f;
   }
   float max_load_factor() const noexcept { return kMaxLoadFactor; }
   void max_load_factor(float) noexcept {}  // no effect, as in boost
@@ -976,38 +964,30 @@ class unordered_flat_map {
   void destroy(value_type* p) noexcept { alloc_traits::destroy(al_, p); }
 
   // Slots for n elements at the max load: ceil(n / 0.875).
-  static size_t slots_for(size_t n) noexcept {
-    if (n == 0) return 0;
-    const double need = static_cast<double>(n) / static_cast<double>(kMaxLoadFactor);
-    size_t c = static_cast<size_t>(need);
-    if (static_cast<double>(c) < need) ++c;
-    return c;
+  static size_t slots_for(size_t n) {
+    const size_t max_slots = kMaxGroups * N - 1;
+    const size_t max_entries = (max_slots / 8) * 7 + (max_slots % 8) * 7 / 8;
+    if (n > max_entries) throw std::length_error("bflat: too many elements");
+    return (n / 7) * 8 + ((n % 7) * 8 + 6) / 7;
   }
   static size_t groups_for_slots(size_t slots) {
-    const size_t g = (slots + N - 1) / N;
-    if (g > kMaxGroups) throw std::length_error("bflat::unordered_flat_map: too many elements");
-    return g ? g : 1;
+    const size_t g = std::max<size_t>(2, slots / N + 1);
+    if (g > kMaxGroups) throw std::length_error("bflat: too many elements");
+    return g;
   }
-  // boost: 100% usage for capacities up to 2N - 1 (here up to 2 groups).
   static size_t initial_ml(size_t ng) noexcept {
-    const size_t cap = ng * N;
-    if (ng <= 2) return cap;
-    return static_cast<size_t>(static_cast<double>(kMaxLoadFactor) * static_cast<double>(cap));
+    if (!ng) return 0;
+    const size_t cap = ng * N - 1;
+    return ng <= 2 ? cap : (cap / 8) * 7 + (cap % 8) * 7 / 8;
   }
-  // lim_: the load limit (growth when the elements reach it). ml_: boost's
-  // anti-drift max load, but starting at lim_ plus a budget (sflat's used
-  // limit: 3/8 of the slots above the load limit); each erase from a group
-  // whose overflow bit for that element is set lowers it by one. When the
-  // elements reach ml_ below lim_, the overflow bytes are recomputed in
-  // place (no element moves) and ml_ is reset.
   void set_limits() noexcept {
     lim_ = initial_ml(ng_);
-    ml_ = lim_ + (ng_ * N - lim_) * 3 / 8;
+    ml_ = lim_;
   }
   void reset_avail() noexcept {
-    const size_t m = ml_ < lim_ ? ml_ : lim_;
-    avail_ = (!ong_ && m > size_) ? m - size_ : 0;
+    avail_ = (!ong_ && ml_ > size_) ? ml_ - size_ : 0;
   }
+
   static size_t table_bytes(size_t ng) noexcept { return ng * (N * sizeof(slot_type) + sizeof(group)); }
 
   // ------------------------------------------------------------- memory
@@ -1022,6 +1002,7 @@ class unordered_flat_map {
       p = group_traits::allocate(a, ng);
     }
     if (!zeroed) std::memset(static_cast<void*>(p), 0, bytes);
+    p[ng - 1].m[N - 1] = 1; // sentinel, never an element
     return p;
   }
   void free_groups(group* p, size_t ng) noexcept {
@@ -1060,7 +1041,7 @@ class unordered_flat_map {
                                         const K& k, uint64_t h, size_t* out_g = nullptr,
                                         unsigned* out_l = nullptr) const {
     const uint8_t rh = detail::reduced_hash(h);
-    detail::prober pb(detail::fastrange(h, ng));
+    detail::prober pb(detail::home_group(h, ng));
 #if BFLAT_PREFETCH == 2
     BFLAT_PREFETCH_ADDR(elems + pb.pos * N);
 #endif
@@ -1188,38 +1169,7 @@ class unordered_flat_map {
   template <typename K, typename F>
   BFLAT_FORCEINLINE std::pair<iterator, bool> insert_impl(const K& k, F&& make) {
     const uint64_t h = hash_of(k);
-#if BFLAT_INSERT_ONE_LOAD
-    // Fast path: one metadata load of the home group gives both the
-    // fingerprint matches and the available slots.
-    const size_t pos = detail::fastrange(h, ng_);
-    group* pg = groups_ + pos;
-    const auto v = pg->load();
-    Mask m = group::match(v, detail::reduced_hash(h));
-    if (m) {
-      slot_type* base = elems_ + pos * N;
-      do {
-        value_type* e = reinterpret_cast<value_type*>(
-            reinterpret_cast<char*>(base) + group::byte_offset<sizeof(slot_type)>(m));
-        if (eq_(k, e->first)) return {iterator(this, e, pos * N + group::lane(m)), false};
-        m &= m - 1;
-      } while (m);
-    }
-    if (BFLAT_LIKELY(avail_ != 0) && BFLAT_LIKELY(pg->is_not_overflowed(h))) {
-      // Absent (not in the home group and no key with this hash spilled).
-      const Mask a = group::match_available(v);
-      if (BFLAT_LIKELY(a != 0)) {
-        const unsigned l = group::lane(a);
-        value_type* e = elem(elems_, pos, l);
-        make(e);
-        pg->set(l, detail::reduced_hash(h));
-        ++size_;
-        --avail_;
-        return {iterator(this, e, pos * N + l), true};
-      }
-      return insert_absent_new(h, make);
-    }
-    return insert_slow(k, h, make);
-#else
+
     // boost order: find, then probe again for an available slot.
     size_t g;
     unsigned l;
@@ -1227,7 +1177,7 @@ class unordered_flat_map {
     if (e) return {iterator(this, e, g * N + l), false};
     if (BFLAT_LIKELY(avail_ != 0)) return insert_absent_new(h, make);
     return insert_slow(k, h, make);
-#endif
+
   }
 
   // The key is known absent and the table has room: place it in the current
@@ -1247,7 +1197,7 @@ class unordered_flat_map {
   // First available slot of h in the current table; marks overflow on the
   // full groups it passes. The table always has an available slot here.
   value_type* place_new(uint64_t h, size_t& g, unsigned& l) noexcept {
-    detail::prober pb(detail::fastrange(h, ng_));
+    detail::prober pb(detail::home_group(h, ng_));
     for (;;) {
       group* pg = groups_ + pb.pos;
       const Mask a = pg->match_available();
@@ -1271,7 +1221,7 @@ class unordered_flat_map {
   // migrated group (it wrapped around), the key goes to the new table.
   // Returns false if the key must go to the new table.
   bool place_old(uint64_t h, size_t& g, unsigned& l) noexcept {
-    detail::prober pb(detail::fastrange(h, ong_));
+    detail::prober pb(detail::home_group(h, ong_));
     if (pb.pos < front_) return false;
     for (;;) {
       if (pb.pos < front_) return false;
@@ -1292,7 +1242,7 @@ class unordered_flat_map {
     if (ong_) {
       migrate_step(kMigrateGroups);
     } else if (avail_ == 0) {
-      // Growth, first allocation or drift refresh. As boost, only for an
+      // Growth, first allocation or anti-drift rehash. As boost, only for an
       // absent key.
       size_t g;
       unsigned l;
@@ -1314,7 +1264,7 @@ class unordered_flat_map {
     if (BFLAT_UNLIKELY(size_ >= ml_ || size_ >= lim_)) {
       // The current table is at its limit before the migration ended (rare:
       // many erases from overflowed groups during the migration): finish,
-      // then grow or refresh.
+      // then rehash using Boost's size/61 request.
       finish_migration();
       make_room();
     }
@@ -1340,63 +1290,21 @@ class unordered_flat_map {
   }
 
   // ------------------------------------------------------------- growth
-  // Growth by tiers of the current table size (sflat): 2x below 2 GiB, 1.5x
-  // below 10 GiB, else 1.25x. need: groups for size + size/61 + 1 elements
-  // (boost's anti-drift slack). If the trigger came from boost's anti-drift
-  // (erases from overflowed groups lowered the max load) and the current
-  // capacity still fits, the table is rebuilt at the same size.
+  // Tiered capacity growth; retain the Boost anti-drift rehash request.
   size_t grown_groups() const {
-    const size_t need = groups_for_slots(slots_for(size_ + 1));
+    const size_t need = groups_for_slots(slots_for(size_ + size_ / 61 + 1));
     if (ng_ == 0) return need;
-    if (need <= ng_) return ng_;
-    const uint64_t bytes = table_bytes(ng_);
-    const uint64_t c = ng_;
-    uint64_t grown = bytes < BFLAT_GROW_2X_BELOW     ? c * 2
-                     : bytes < BFLAT_GROW_1_5X_BELOW ? c + c / 2
-                                                     : c + c / 4;
-    if (grown < need) grown = need;
-    if (grown > kMaxGroups) {
-      if (need > kMaxGroups) throw std::length_error("bflat::unordered_flat_map: too many elements");
-      grown = kMaxGroups;
-    }
-    return static_cast<size_t>(grown);
+    // Preserve Boost's drift-only same-capacity rehash when it fits.
+    if (size_ < lim_ && need <= ng_) return ng_;
+    const size_t bytes = table_bytes(ng_);
+    const size_t divisor = bytes < BFLAT_GROW_2X_BELOW ? 1 :
+                           bytes < BFLAT_GROW_1_5X_BELOW ? 2 :
+                           bytes < BFLAT_GROW_1_25X_BELOW ? 4 : 8;
+    const size_t extra = ng_ / divisor + (ng_ % divisor != 0);
+    if (ng_ > kMaxGroups - extra) throw std::length_error("bflat: too many elements");
+    return std::max(need, ng_ + extra);
   }
-
-  // Not migrating, and no room: grow when the elements reach the load
-  // limit, else (anti-drift budget used up) recompute the overflow bytes.
-  void make_room() {
-    if (ng_ != 0 && size_ < lim_) {
-      refresh_overflow();
-      return;
-    }
-    grow();
-  }
-
-  // Recompute every overflow byte in place: clear them, then for each
-  // element outside its home group replay its probe sequence from the home
-  // group up to its group and mark the groups passed. The elements do not
-  // move; the stale bits that erased elements left behind are gone.
-  BFLAT_NOINLINE void refresh_overflow() noexcept {
-#if defined(BFLAT_STATS)
-    ++bflat_stats_refresh;
-#endif
-    for (size_t g = 0; g < ng_; ++g) groups_[g].m[N] = 0;
-    for (size_t g = 0; g < ng_; ++g) {
-      Mask m = groups_[g].match_occupied();
-      while (m) {
-        const unsigned l = group::lane(m);
-        const uint64_t h = hash_of(elem(elems_, g, l)->first);
-        detail::prober pb(detail::fastrange(h, ng_));
-        while (pb.pos != g) {
-          groups_[pb.pos].mark_overflow(h);
-          pb.next(ng_);
-        }
-        m &= m - 1;
-      }
-    }
-    set_limits();
-    reset_avail();
-  }
+  void make_room() { grow(); }
 
   void grow() {
     const size_t g = grown_groups();
@@ -1485,7 +1393,7 @@ class unordered_flat_map {
     }
     const size_t new_bytes = ng_ * gsz;
     if (detail::is_mapped(new_bytes)) {
-      // Front in the new table: same relative position (fastrange is
+      // Front in the new table: same relative position (home mapping is
       // monotonic). Hint two huge pages ahead to cover probe spill.
 #if defined(__SIZEOF_INT128__)
       const size_t fg = static_cast<size_t>((static_cast<__uint128_t>(front_) * ng_) / ong_);
@@ -1545,6 +1453,7 @@ class unordered_flat_map {
   }
   void erase_old(size_t g, unsigned l) noexcept {
     destroy(elem(oelems_, g, l));
+    if (ogroups_[g].maybe_caused_overflow(l)) --ml_;
     ogroups_[g].reset(l);
     --size_;
   }

@@ -1,20 +1,22 @@
 # bflat::unordered_flat_map
 
-bflat is a header-only C++17 hash map for large in-memory datasets. It combines
-SIMD-assisted open addressing with precise capacity reservation, progressively
-smaller growth factors, and incremental migration that releases old resident
-pages as entries move. Its goal is to balance lookup and insertion throughput
-with predictable capacity overhead and lower resident-memory peaks during growth.
+bflat is a C++17 hash map for large data sets in memory.
+The library has one header file.
+It uses SIMD metadata checks to reduce full key comparisons.
+It reserves capacity in small groups and reduces growth factors as table size increases.
+During growth, it moves entries in steps and releases old resident pages.
+These features balance operation time, unused capacity, and peak resident memory.
 
-The interface includes `emplace`, `try_emplace`, `operator[]`, lookup, iteration,
-erasure, `reserve`, and `rehash`. It supports custom hash/equality functions,
-transparent lookup, move-only mapped values, and custom allocators. It is a flat
-container: growth and migration can move elements, so it does not provide the
-reference stability of a node-based map.
+The map supports insertion, lookup, iteration, erasure, reservation, and rehashing.
+It accepts custom hash functions, equality functions, and allocators.
+It also supports transparent lookup and move-only values.
+Growth can move entries and invalidate references.
+The map does not give the reference stability of a node-based map.
 
-## Quick start
+## Installation and use
 
-Add `include/` to the compiler's include paths; compile with C++17 or later.
+Add `include/` to the compiler include paths.
+Use C++17 or a later version.
 
 ```cpp
 #include <bflat/unordered_flat_map.hpp>
@@ -24,9 +26,9 @@ Add `include/` to the compiler's include paths; compile with C++17 or later.
 int main() {
     bflat::unordered_flat_map<std::uint64_t, std::string> users;
     users.reserve(1000);
-    users.try_emplace(42, "Alice");
+    users.try_emplace(42, "ready");
     if (auto it = users.find(42); it != users.end()) {
-        it->second = "Bob";
+        it->second = "done";
     }
     users.erase(42);
 }
@@ -34,135 +36,172 @@ int main() {
 
 ## Design
 
-### SIMD groups and overflow tracking
+### Groups and metadata
 
-Each group contains 15 element slots and 16 bytes of metadata: one reduced-hash
-byte per slot and an overflow byte. SSE2 or NEON compares metadata in parallel;
-a scalar implementation is also available. Reduced-hash matches identify which
-keys require full equality checks. Overflow bits record hash classes that have
-probed beyond a group, allowing unsuccessful lookups to stop early.
+Each group has 15 element slots and 16 metadata bytes.
+Each slot has one reduced-hash byte.
+The last metadata byte contains overflow bits.
+SSE2 or NEON instructions compare metadata bytes in parallel.
+A scalar implementation is also available.
 
-Insertion first searches for an existing key, then probes for an available slot.
-This keeps duplicate detection separate from placement and preserves the
-Boost.Unordered-style two-stage insertion and overflow-based anti-drift policy.
-Erasing an entry that may have caused overflow reduces the allowed insertion
-budget. Exhausting that budget can trigger rehashing, even if the live population
-has not increased. A rehash keeps the current capacity when the required entries
-and slack fit; otherwise it grows the table.
+A reduced-hash match identifies an entry for a full key comparison.
+Overflow bits identify hash classes that can have entries beyond the group.
+These bits let a failed lookup stop before the end of the probe sequence.
+Insertion first checks for an existing key.
+It then searches for an available slot.
 
-### Precise capacity and complete probing
+### Capacity and probe coverage
 
-A group count need not be a power of two. `reserve(n)` rounds to whole 15-slot
-groups, with at least two groups and one final sentinel slot. Thus usable
-capacity is `15 * groups - 1`. The live-entry limit is exactly
-`floor(capacity * 7/8)`; the smallest two-group table can use its full capacity.
-Integer arithmetic avoids large-table floating-point rounding errors.
+The group count does not need to be a power of two.
+`reserve(n)` rounds the capacity to whole groups.
+A table has at least two groups and one final sentinel slot.
+Usable capacity is `15 * groups - 1`.
+The normal entry limit is `floor(capacity * 7/8)`.
+The two-group table can use all its slots.
 
-The home group is the high half of `hash * group_count`. A triangular probe
-prefix is followed by a linear tail, covering every group within at most twice
-the group count in visits. This coverage is necessary because triangular probing
-alone does not guarantee full coverage for arbitrary group counts.
+Integer calculations prevent capacity errors from floating-point rounding.
+The home group is the high half of `hash * group_count`.
+The probe sequence starts with triangular steps.
+A linear tail then gives full group coverage.
+The sequence makes no more than twice the group count in visits.
+Triangular steps alone do not give this coverage for all group counts.
 
-Hash functions marked avalanching bypass additional mixing. The marker may be
-`using is_avalanching = void` or a type whose boolean `value` is true. False or
-absent markers retain mixing. Boost hash traits are consulted when available.
+### Hash markers
 
-### Growth proportional to table size
+An avalanching hash function does not need additional mixing.
+A hash type can declare `using is_avalanching = void`.
+It can also declare a marker type with a true boolean `value`.
+A false marker or an absent marker causes additional mixing.
+The map also uses Boost hash traits when they are available.
 
-Small tables favor fewer allocations; large tables favor smaller capacity jumps.
-Thresholds use the current element-slot and metadata capacity in bytes.
+### Growth factors
 
-| Current table bytes | Growth factor | Threshold macro |
+Small tables use large growth factors to reduce allocation and migration work.
+Large tables use smaller factors to reduce unused capacity.
+Thresholds use the current capacity bytes for element slots and metadata.
+
+| Current table size | Growth factor | Threshold macro |
 |---|---:|---|
-| Below 256 MiB | 2x | `BFLAT_GROW_2X_BELOW` |
-| 256 MiB to below 2 GiB | 1.5x | `BFLAT_GROW_1_5X_BELOW` |
-| 2 GiB to below 16 GiB | 1.25x | `BFLAT_GROW_1_25X_BELOW` |
-| 16 GiB and above | 1.125x | — |
+| Less than 256 MiB | 2x | `BFLAT_GROW_2X_BELOW` |
+| 256 MiB to less than 2 GiB | 1.5x | `BFLAT_GROW_1_5X_BELOW` |
+| 2 GiB to less than 16 GiB | 1.25x | `BFLAT_GROW_1_25X_BELOW` |
+| 16 GiB or more | 1.125x | — |
 
-Growth adds `ceil(groups / divisor)` groups, with divisors 1, 2, 4, and 8,
-and must accommodate the requested live entries and anti-drift slack
-(`size/61 + 1` additional entries). Threshold macros must be ordered.
-Multiplicative growth preserves amortization; smaller factors trade more total
-migration work for less unused capacity. For example, the last tier grows a
-64 GiB table to approximately 72 GiB.
+Growth adds `ceil(groups / divisor)` groups.
+The divisors are 1, 2, 4, and 8.
+The new table must also contain the requested entries and the anti-drift slack.
+The slack request is `size/61 + 1` additional entries.
+Threshold macros must be in increasing order.
+Smaller growth factors reduce spare capacity but increase total migration work.
 
-### Migration and the memory model
+### Anti-drift maintenance
 
-Element storage and group metadata use separate arrays. On supported platforms,
-the default allocator uses anonymous `mmap` mappings and transparent-huge-page
-hints. Custom allocators and builds with `BFLAT_USE_MMAP=0` use allocator-backed
-storage. Huge-page hints are advisory.
+The map uses the Boost-style overflow decrement rule.
+Erasure reduces the insertion budget when an entry can have caused overflow.
+When this budget is empty, an insertion can start a rehash.
+This rehash can occur with no increase in the live entry count.
+The map keeps the current capacity if the entries and slack fit.
+Otherwise, the map grows.
 
-Tables below `BFLAT_GROW_AT_ONCE_BELOW` (2 MiB by default) migrate in one step.
-Larger tables migrate incrementally as absent-key insertions advance the
-migration frontier. Lookups consult both tables while migration is active.
-New entries whose old home group has not been migrated can enter the old table,
-keeping writes near the frontier in the new table. Reclaimable pages behind
-the frontier are released to reduce resident-memory overlap.
+### Incremental migration
 
-Resident memory and virtual address space measure different costs. Old and new
-mappings can coexist even after old resident pages are released. A 64-to-72 GiB
-resize can therefore reserve roughly 136 GiB of virtual address space. Migration
-is not a strict latency bound: some operations can complete pending migration.
-Call `finish_migration()` explicitly to complete it before measuring settled
-memory or entering a phase that should not retain the old table.
+Element storage and group metadata use separate arrays.
+With the default allocator, supported platforms use anonymous `mmap` mappings.
+Custom allocators use allocator storage.
+`BFLAT_USE_MMAP=0` also selects allocator storage.
+Transparent huge-page hints are advisory.
 
-Treat insertion during migration, rehashing, and explicit migration completion
-as invalidating iterators, pointers, and references. Erasing an element does not
-move surviving elements. Read-only lookup does not advance migration. External
-synchronization is required for concurrent mutation.
+Small tables complete migration in one operation.
+The default limit for this behavior is 2 MiB.
+`BFLAT_GROW_AT_ONCE_BELOW` controls this limit.
+Larger tables move entries in steps during absent-key insertions.
+Lookups check both tables while migration is active.
 
-### Exceptions and allocators
+The migration frontier separates old groups that have moved from groups that have not moved.
+A new entry can enter the old table if its old home group is beyond the frontier.
+This rule limits writes ahead of the frontier in the new table.
+The map releases eligible resident pages behind the frontier.
 
-A migration step moves each element out of the old table as soon as it is
-moved into the new one, so a throwing hash or move constructor leaves every
-element in exactly one table; the element whose move threw is dropped (its
-key may already be moved from) and the exception propagates from the insert.
-`find`, `contains` and `count` are not `noexcept`: they call the hash and the
-predicate. Copy assignment with a propagating allocator frees the old
-storage with the old allocator. `insert(first, last)` reserves only when the
-range does not fit the current load limit; it never shrinks the table.
-`max_size()` is the load limit of the largest table, so `reserve(max_size())`
-is not a length error.
+Old and new virtual mappings can exist at the same time.
+Released resident pages do not remove the full old mapping.
+A growth step from 64 GiB to 72 GiB can thus reserve approximately 136 GiB of virtual address space.
+Some operations complete pending migration.
+Incremental migration does not give a strict operation-time limit.
 
+Call `finish_migration()` to complete pending migration.
+Use this function before you measure settled memory.
+Read-only lookup does not advance migration.
 
-### Reserve for sustained churn
+### Iterators and exceptions
 
-For a known population that repeatedly inserts and erases, reserve headroom can
-reduce anti-drift-triggered growth:
+Insertion during migration can invalidate iterators, pointers, and references.
+Rehashing and explicit migration completion can also invalidate them.
+Erasure does not move the surviving entries.
+Use external synchronization for concurrent mutation.
+
+Each entry leaves the old table after its move completes.
+A throwing hash or move leaves each remaining entry in one table.
+If an entry move throws, the map removes that entry.
+Its key can already have changed.
+The insertion passes the exception to the caller.
+
+`find`, `contains`, and `count` can pass hash or equality exceptions to the caller.
+Copy assignment releases old storage with the old allocator before allocator propagation.
+Range insertion reserves capacity only if the range exceeds the current load limit.
+It does not reduce table capacity.
+`max_size()` gives the entry limit of the largest table.
+
+### Capacity for repeated insertion and erasure
+
+Reserve headroom can reduce growth caused by anti-drift maintenance.
+For a known population, you can reserve 12.5% more entries:
 
 ```cpp
 const std::size_t expected = 200'000'000;
 map.reserve(expected + expected / 8 + (expected % 8 != 0));
 ```
 
-This requests 12.5% more entries; it is a workload choice, not an automatic
-adjustment inside `reserve`. Insert-before-erase temporarily holds one extra
-entry, which must also fit. Headroom reduces occupancy and consumes additional
-memory initially; it does not guarantee that arbitrarily long churn avoids
-rehashing. Different containers round the same reserve request differently.
+The caller selects this headroom.
+The `reserve` function does not add it automatically.
+An insertion before an erasure temporarily adds one live entry.
+Capacity must also permit this entry.
+Headroom uses more initial memory and reduces the load factor.
+It does not prevent all future rehashes.
 
-## Benchmark snapshot
+## Benchmark summary
 
-Xeon Platinum 8573C, GCC 14.2, C++17, `-O3 -DNDEBUG -march=native`, CPU 0;
-Boost 1.92 and sflat with its pair-emplace optimization. These results apply to
-the stated workloads and occupancy levels, rather than a general speed ranking.
+The tests used a Xeon Platinum 8573C processor and GCC 14.2.
+Compiler options were `-std=c++17 -O3 -DNDEBUG -march=native`.
+Each process used CPU 0.
+The comparison used Boost 1.92 and sflat with pair-emplace optimization.
+The results describe the measured conditions.
+They do not give a general performance ranking.
 
-At 50M `uint64_t` keys and values, insert-before-erase churn, median of three
-fresh processes, nanoseconds per individual insert or erase (lower is better):
+### Operation time
+
+The tables contained 50M `uint64_t` keys and values.
+Each churn pair inserted one new key, then erased one live key.
+Each configuration ran in three fresh processes.
+The table shows median nanoseconds per insertion or erasure.
+Lower values indicate less time.
 
 | Churn pairs | bflat, reserve 56.25M | Boost, reserve 50M | sflat, reserve 50M |
 |---|---:|---:|---:|
 | 1M | 110.45 | 99.18 | 126.86 |
 | 20M | 113.29 | 104.35 | 142.42 |
 
-Capacities were approximately 64.29M, 62.91M, and 57.14M respectively, so these
-columns have different occupancy. These throughput and memory snapshots were
-measured before the subsequent exception-safety review fixes. Setup is outside the timer; growth or rehash
-triggered during churn is included. One insert plus one erase is two operations.
+The capacities were approximately 64.29M, 62.91M, and 57.14M.
+Thus, the configurations had different load factors.
+Setup time is not in the results.
+Rehash and growth time during churn are in the results.
+The [summary data](docs/validation/churn-summary.csv) contains the measured values.
 
-At 200M entries followed by 20M insert-before-erase churn pairs, each configuration
-ran in a fresh process. GiB means 2^30 bytes; settled values are after migration.
+### Memory
+
+Each configuration inserted 200M entries and then completed 20M churn pairs.
+Each configuration used one fresh process.
+Settled values apply after migration completion.
+The unit GiB means 2^30 bytes.
 
 | Container / reserve | Settled RSS | Settled VM | Peak RSS | Peak VM |
 |---|---:|---:|---:|---:|
@@ -171,34 +210,58 @@ ran in a fresh process. GiB means 2^30 bytes; settled values are after migration
 | Boost / 200M | 4.002 | 4.006 | 4.002 | 4.006 |
 | sflat / 200M | 3.648 | 3.652 | 3.648 | 3.654 |
 
-bflat with headroom kept capacity at 257,142,869 throughout; exact reserve grew
-from 228,571,439 to 285,714,299 during churn. The memory study is a single run per
-configuration; RSS and VM peaks need not occur simultaneously. See the
-[200M memory report](docs/validation/memory-200M.md) for full conditions and
-additional reserve comparisons.
+With headroom, bflat kept a capacity of 257,142,869 slots.
+With exact reserve, bflat grew from 228,571,439 to 285,714,299 slots during churn.
+RSS and VM peaks can occur at different times.
+The [memory report](docs/validation/memory-200M.md) gives more conditions and results.
+These memory and operation-time measurements were made before the exception-safety review fixes.
 
 ## Validation
 
+Run the unit tests with Boost available:
+
 ```sh
 BOOST_INCLUDE_DIR=/path/to/boost ./tests/run_tests.sh
+```
+
+Run the Ankerl corpus replay:
+
+```sh
 bash tests/ankerl/run.sh
 ```
 
-The unit runner covers API behavior, arbitrary-group probe coverage, growth tiers,
-weak hashes, differential checks against `std::unordered_map`, scalar/SSE2 paths,
-and ASan/UBSan. Recorded baseline validation passed all 12 configurations with
-Boost available. The runner additionally includes review regressions for
-allocator propagation, throwing operations, size limits, and range insertion.
+The unit tests cover API behavior, group coverage, growth factors, weak hashes, and differential checks.
+They also cover scalar and SSE2 paths, ASan, and UBSan.
+Recorded baseline validation passed 12 configurations.
+The runner also includes tests for allocator propagation, exceptions, size limits, and range insertion.
 
-The Ankerl replay includes 363 unchanged corpus files from `fuzz_insert_erase`
-and `fuzz_string`, each checked without reserve, with exact reserve, and with
-12.5% headroom: 1,089 cases per configuration. Release and ASan/UBSan with forced
-incremental migration passed. This covers those two corpus workloads, not the
-entire `unordered_dense` test suite or continuous coverage-guided fuzzing.
-Sources, licenses, corpus, and results are included under `tests/ankerl` and
-[docs/validation](docs/validation).
+The Ankerl replay uses 363 unchanged corpus files from two workloads.
+The workloads are `fuzz_insert_erase` and `fuzz_string`.
+Each file runs without reserve, with exact reserve, and with 12.5% headroom.
+All 1,089 cases passed in each release and sanitizer configuration.
+This result covers the two corpus workloads.
+It does not cover the full upstream test suite or continuous fuzzing.
+See [validation records](docs/validation) for sources and results.
+
+## Technical terms
+
+| Term | Meaning in this project |
+|---|---|
+| Slot | Storage for one key-value entry. |
+| Group | Fifteen slots with sixteen metadata bytes. |
+| Reduced hash | A hash byte that selects possible key matches. |
+| Home group | The first group in a key probe sequence. |
+| Sentinel | A reserved slot that marks the table end. |
+| Load factor | The live entry count divided by usable slot capacity. |
+| Migration | Transfer of entries from an old table to a new table. |
+| Migration frontier | The boundary between moved and unmoved old groups. |
+| Anti-drift | Maintenance that limits overflow effects after erasure. |
+| Churn | Repeated insertion and erasure with a stable live population. |
+| Corpus | Stored input files for test replay. |
+| RSS | Resident set size: memory pages resident in physical memory. |
+| VM | Virtual address space reserved by the process. |
 
 ## License
 
-bflat is distributed under the Boost Software License; see [LICENSE](LICENSE).
-Bundled Ankerl test dependencies retain their [MIT license](tests/ankerl/LICENSE).
+The [Boost Software License](LICENSE) applies to bflat.
+The [MIT license](tests/ankerl/LICENSE) applies to the bundled Ankerl test dependencies.

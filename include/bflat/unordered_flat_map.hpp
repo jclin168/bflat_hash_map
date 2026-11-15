@@ -1,10 +1,9 @@
 // bflat::unordered_flat_map
 //
-// Open addressing with 15-slot SIMD groups and per-group overflow metadata.
-// Arbitrary group counts support precise reservation and tiered growth.
-// Separate element/metadata mappings enable incremental migration and release
-// of resident pages behind the migration frontier. See README.md for the
-// capacity policy, memory model and iterator invalidation rules.
+// The map uses 15-slot SIMD groups and overflow metadata.
+// Arbitrary group counts permit precise reservation and tiered growth.
+// Separate arrays let migration release old resident pages.
+// See README.md for capacity rules and iterator invalidation.
 #ifndef BFLAT_UNORDERED_FLAT_MAP_HPP
 #define BFLAT_UNORDERED_FLAT_MAP_HPP
 
@@ -123,9 +122,9 @@ inline size_t bflat_stats_refresh = 0;
 #endif
 
 // ---------------------------------------------------------- hash traits
-// A hash marked as avalanching is used as is; others are mixed with mulx
-// Uses boost::hash_is_avalanching when Boost is available, else
-// a nested is_avalanching typedef.
+// An avalanching marker prevents additional mixing.
+// Other hashes use mulx mixing.
+// Use the Boost trait when available, or the nested marker type.
 template <typename Hash, typename = void>
 struct hash_is_avalanching_nested : std::false_type {};
 template <typename Hash>
@@ -184,8 +183,9 @@ inline unsigned ctz64(uint64_t x) noexcept {
 #endif
 }
 
-// boost's reduced hash: low byte, with 0 and 1 mapped to 8 and 9 (0 marks
-// an available slot, 1 is boost's sentinel).
+// The reduced hash uses the low byte.
+// Map 0 to 8 and 1 to 9.
+// Metadata value 0 marks an available slot. Value 1 marks the sentinel.
 inline uint8_t reduced_hash(uint64_t h) noexcept {
 #if BFLAT_RH_TABLE
   static constexpr unsigned char table[] = {
@@ -300,10 +300,9 @@ struct alignas(16) group15 {
 #endif
 
   static BFLAT_FORCEINLINE unsigned lane(Mask x) noexcept { return ctz64(x) >> kShift; }
-  // Byte offset of the lowest matching lane in an array of S-byte slots.
-  // With 4 bits per lane (NEON shrn) ctz is a multiple of 4, so for S a
-  // multiple of 4 the offset is ctz * (S / 4): one shift, folded into the
-  // load's addressing mode, instead of a shift right and a shift left.
+  // Get the byte offset of the first matching lane.
+  // Each slot has S bytes. NEON uses four bits per lane.
+  // If S is a multiple of four, the offset is ctz * (S / 4).
   template <size_t S>
   static BFLAT_FORCEINLINE size_t byte_offset(Mask x) noexcept {
     if constexpr (kShift == 2 && S % 4 == 0) return static_cast<size_t>(ctz64(x)) * (S / 4);
@@ -483,9 +482,10 @@ class unordered_flat_map {
 
  public:
   // ---------------------------------------------------------- iterators
-  // An iterator holds the map, its element and the unified slot index:
-  // [0, groups * 15) for the current table, then the old table of an ongoing
-  // migration. The map pointer allows traversal across both tables.
+  // An iterator holds the map, the element, and a unified slot index.
+  // Indices [0, groups * 15) identify the current table.
+  // Subsequent indices identify the old table during migration.
+  // The map pointer permits traversal across both tables.
   template <bool IsConst>
   class iterator_impl {
    public:
@@ -864,9 +864,10 @@ class unordered_flat_map {
   void max_load_factor(float) noexcept {}  // no effect, as in boost
   size_type max_load() const noexcept { return ml_ < lim_ ? ml_ : lim_; }
 
-  // boost semantics: at least n slots and at least size() / mlf; may shrink.
-  // A migration is finished first; the rehash itself is done at once (in
-  // index order, releasing old pages behind the cursor).
+  // Reserve at least n slots and enough slots for the current entries.
+  // Complete pending migration first. The rehash can reduce capacity.
+  // Rehash all entries in index order in this call.
+  // Release old pages behind the cursor.
   void rehash(size_type n) {
     finish_migration();
     const size_t need = slots_for(size_);
@@ -1060,10 +1061,10 @@ class unordered_flat_map {
     return nullptr;
   }
 
-  // Element with key k in the old table of a migration, or nullptr.
-  // Migrated groups (before front_) have no occupied slots but keep their
-  // overflow byte, so the probe passes through them exactly as before the
-  // migration and stops where it would have stopped.
+  // Find key k in the old table, or return nullptr.
+  // Groups before front_ have no occupied slots.
+  // These groups keep their overflow bytes.
+  // Thus, the old probe sequence keeps the same stop conditions.
   template <typename K>
   BFLAT_NOINLINE value_type* find_old(const K& k, uint64_t h, size_t* out_g = nullptr,
                                       unsigned* out_l = nullptr) const {
@@ -1172,8 +1173,9 @@ class unordered_flat_map {
 
   }
 
-  // The key is known absent and the table has room: place it in the current
-  // table (first available slot in probe order, marking overflow).
+  // The key is absent and the table has space.
+  // Use the first available slot in probe order.
+  // Set overflow bits on the full groups before that slot.
   template <typename F>
   std::pair<iterator, bool> insert_absent_new(uint64_t h, F& make) {
     size_t g;
@@ -1186,8 +1188,9 @@ class unordered_flat_map {
     return {iterator(this, e, g * N + l), true};
   }
 
-  // First available slot of h in the current table; marks overflow on the
-  // full groups it passes. The table always has an available slot here.
+  // Find the first available slot for h in the current table.
+  // Set overflow bits on each full group in the path.
+  // The caller must make sure that a slot is available.
   value_type* place_new(uint64_t h, size_t& g, unsigned& l) noexcept {
     detail::prober pb(detail::home_group(h, ng_));
     for (;;) {
@@ -1206,12 +1209,12 @@ class unordered_flat_map {
     }
   }
 
-  // During a migration a new key whose old home group is at or after the
-  // front goes into the old table, so the new table gets writes
-  // only near the front, in order, and old pages behind the front can be
-  // released. The probe follows the old table's sequence; if it reaches a
-  // migrated group (it wrapped around), the key goes to the new table.
-  // Returns false if the key must go to the new table.
+  // Use the old table if the old home group is at or after the frontier.
+  // This rule keeps new-table writes near the frontier.
+  // Old pages behind the frontier can then be released.
+  // Follow the old probe sequence.
+  // Return false if the sequence reaches a group that has moved.
+  // A false result directs the caller to the new table.
   bool place_old(uint64_t h, size_t& g, unsigned& l) noexcept {
     detail::prober pb(detail::home_group(h, ong_));
     if (pb.pos < front_) return false;
@@ -1254,9 +1257,9 @@ class unordered_flat_map {
       }
     }
     if (BFLAT_UNLIKELY(size_ >= ml_ || size_ >= lim_)) {
-      // The current table is at its limit before the migration ended (rare:
-      // many erases from overflowed groups during the migration): finish,
-      // then rehash using Boost's size/61 request.
+      // The entry limit is reached before migration completion.
+      // Overflow-related erasures can reduce this limit.
+      // Complete migration, then rehash with the size/61 slack request.
       finish_migration();
       make_room();
     }
@@ -1305,9 +1308,10 @@ class unordered_flat_map {
     relocate_to(g, at_once, at_once);
   }
 
-  // Start moving all elements to a new table of g groups. at_once: finish in
-  // this call. huge: MADV_HUGEPAGE on the whole new element array (else only
-  // near the migration front).
+  // Start migration to a new table with g groups.
+  // If at_once is true, complete migration in this call.
+  // If huge is true, apply MADV_HUGEPAGE to the full new array.
+  // Otherwise, apply the hint near the frontier.
   void relocate_to(size_t g, bool at_once, bool huge) {
     assert(!ong_);
     group* ngr = alloc_groups(g);
@@ -1341,13 +1345,12 @@ class unordered_flat_map {
     else migrate_step(kMigrateGroups);
   }
 
-  // Move up to `batch` old groups (from the front, in index order) to the
-  // current table. Elements are moved, not copied (move_if_noexcept is not
-  // applied). Each element leaves the old table as soon as it is moved, so
-  // an exception (hash, or a throwing move) leaves every element in exactly
-  // one table; an element whose move throws is dropped (its key may already
-  // be moved from), the exception propagates and the migration resumes with
-  // the next insert.
+  // Move no more than batch old groups to the current table.
+  // Start at the frontier and use index order.
+  // Use move construction without move_if_noexcept.
+  // Remove each old entry after its move completes.
+  // If a move throws, remove the affected entry because its key can have changed.
+  // Pass the exception to the caller. The next insertion resumes migration.
   void migrate_step(size_t batch) {
     if (!ong_) return;
     const size_t stop = ong_ - front_ > batch ? front_ + batch : ong_;
@@ -1540,9 +1543,8 @@ class unordered_flat_map {
     swap(huge_hint_, o.huge_hint_);
   }
 
-  // Copy: same table layout (metadata copied, each element copied to its
-  // slot) when the source is not migrating; otherwise use a compact table
-  // and inserts.
+  // If the source is not migrating, copy its layout, metadata, and occupied slots.
+  // Otherwise, insert the entries into a compact table.
   void copy_from(const unordered_flat_map& o) {
     if (o.size_ == 0) return;
     if (!o.ong_) {
@@ -1603,8 +1605,9 @@ class unordered_flat_map {
   }
 
   // ------------------------------------------------------------- members
-  // Hot members first: find reads groups_, elems_, ng_ and (on a miss with
-  // the overflow bit set) ong_.
+  // Put frequently accessed members first.
+  // Lookup reads groups_, elems_, and ng_.
+  // A miss with an overflow bit also requires ong_.
   group* groups_ = empty_groups();
   slot_type* elems_ = nullptr;
   size_t ng_ = 0;       // groups in the current table

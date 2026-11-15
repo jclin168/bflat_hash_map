@@ -231,12 +231,29 @@ int main() {
     std::vector<uint64_t> keys;
     for (uint64_t k = 0; k < 1000000; ++k) keys.push_back(k * 0x9E3779B97F4A7C15ull);
     CHECK(iteration_order_ratio<std::hash<uint64_t>>(keys) < 4.0);
-    // An avalanching hash (no mixing) with random keys: reseeds only with
-    // BFLAT_RESEED_AVALANCHING (checked for content either way).
+    // An avalanching hash (no mixing) with random keys: reseeds unless
+    // BFLAT_RESEED_AVALANCHING=0 (checked for content either way).
     std::mt19937_64 rng(7);
     for (auto& k : keys) k = rng();
     const double r = iteration_order_ratio<IdentityHash>(keys);
     CHECK(!BFLAT_RESEED_AVALANCHING || r < 4.0);
+    // Ascending keys with an identity hash marked avalanching: every home is
+    // group 0 until a reseed mixes the hash. Against the random keys.
+    // (Quadratic with BFLAT_RESEED_AVALANCHING=0.)
+    if (BFLAT_RESEED_AVALANCHING) {
+      double t0 = now_seconds();
+      bflat::unordered_flat_map<uint64_t, uint64_t, IdentityHash> asc;
+      for (uint64_t k = 0; k < keys.size(); ++k) asc[k] = k;
+      double t1 = now_seconds();
+      bflat::unordered_flat_map<uint64_t, uint64_t, IdentityHash> rnd;
+      for (uint64_t k : keys) rnd[k] = k;
+      double t2 = now_seconds();
+      bool found = asc.size() == keys.size() && asc.check_invariants();
+      for (uint64_t k = 0; k < keys.size(); k += 97) found &= asc.find(k)->second == k;
+      CHECK(found && !asc.contains(keys.size()));
+      std::printf("  ascending identity: %.3f s, random %.3f s\n", t1 - t0, t2 - t1);
+      CHECK((t1 - t0) / (t2 - t1) < 4.0);
+    }
   }
 
   // Erasing other elements while iterating: an erased element is not

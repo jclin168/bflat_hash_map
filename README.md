@@ -67,9 +67,20 @@ quadratic time (boost has the same behaviour). An insert that probes
 keys probe at most about 20 at the load limit of a 10M table. The next
 insert that reaches the slow path rebuilds the table, at the same capacity
 when the elements fit, with the next of 16 checked multipliers. A table
-with an avalanching hash (used unmixed) keeps the pile-up unless
-`BFLAT_RESEED_AVALANCHING=1`: then it is mixed with mulx after a reseed,
-and the check of the multiplier costs about 3% in an insert loop (10M keys). A table rebuilds at most once per
+with an avalanching hash (used unmixed) is then mixed with mulx too, but its
+inline lookups still probe with the unmixed hash, so that no table pays a
+test of the multiplier (a branch on it before the probe cost 2.5-3% in a
+10M insert loop, a multiply by a per-table odd constant 2.5%): a key found
+that way is the key, a miss is checked again with the mixed hash in a
+noinline path (behind the test of the old table, which now also reads the
+multiplier), and every insert takes the slow path. A reseeded table of such
+a hash is slower (10M keys: find hit 2.5x, miss 2.6x, insert 1.4x,
+erase+insert 1.1x) but linear; `clear()` returns a table to the initial
+multiplier. `BFLAT_RESEED_AVALANCHING=0` keeps the pile-up for avalanching
+hashes instead (the previous default). Copying a 10M table in iteration
+order into an empty one takes 1.0 s with an avalanching hash (0.67 s mixed,
+31.7 s before); a xor seed instead of mulx does not help (38 s): it maps the
+run of keys with the same top bits to another such run. A table rebuilds at most once per
 doubling of its size, so a hash that no multiplier helps costs O(1)
 rebuilds per element. Tables start with boost's multiplier, so capacities and iteration order are unchanged unless a
 pile-up is seen. A rebuild follows the growth rules (at once below

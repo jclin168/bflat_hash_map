@@ -82,10 +82,10 @@ static_assert(BFLAT_GROW_2X_BELOW <= BFLAT_GROW_1_5X_BELOW &&
 #define BFLAT_RESEED_STEPS 64
 #endif
 // 1: a table with an avalanching hash (used unmixed) reseeds too, by mixing
-// the hash from then on. The check of the multiplier costs about 3% in an
-// insert loop, so by default such a table keeps the pile-up.
+// the hash from then on; its lookups keep the unmixed hash and take the slow
+// path when that misses (see hot_hash()). 0: such a table keeps the pile-up.
 #if !defined(BFLAT_RESEED_AVALANCHING)
-#define BFLAT_RESEED_AVALANCHING 0
+#define BFLAT_RESEED_AVALANCHING 1
 #endif
 // NEON match: 1 = cmeq + shrn #4 (4 bits per lane, sflat style),
 // 0 = boost's movemask emulation (vand + vzip + vaddv).
@@ -518,8 +518,9 @@ class unordered_flat_map {
   static constexpr size_t kSlotAlign =
       alignof(slot_type) > detail::kCacheLine ? alignof(slot_type) : detail::kCacheLine;
   static constexpr size_t kMigrateGroups = BFLAT_MIGRATE_GROUPS;
-  static constexpr size_t kReseedSteps =
-      kMix || BFLAT_RESEED_AVALANCHING ? BFLAT_RESEED_STEPS : 0;
+  // An avalanching hash that may be reseeded (see hot_hash()).
+  static constexpr bool kGuess = !kMix && BFLAT_RESEED_AVALANCHING;
+  static constexpr size_t kReseedSteps = kMix || kGuess ? BFLAT_RESEED_STEPS : 0;
   static constexpr size_t kMaxGroups =
       std::numeric_limits<size_t>::max() / (sizeof(slot_type) * N + sizeof(group)) / 2;
 
@@ -861,7 +862,10 @@ class unordered_flat_map {
       set_limits();
     }
     size_ = 0;
-    reseed_ = false;
+    // Empty: back to the initial multiplier.
+    mul_ = omul_ = kInitialMul;
+    reseed_size_ = 0;
+    reseed_ = 0;
     reset_avail();
   }
 
@@ -998,17 +1002,46 @@ class unordered_flat_map {
  private:
   // ------------------------------------------------------------ helpers
   // The user hash mixed with the table's multiplier. An avalanching hash is
-  // used as is (until a reseed with BFLAT_RESEED_AVALANCHING; multiplier 0).
+  // used as is until a reseed (multiplier 0).
   static constexpr uint64_t kInitialMul = kMix ? detail::kMulx : 0;
   static BFLAT_FORCEINLINE uint64_t mix(uint64_t h, uint64_t mul) noexcept {
     if constexpr (kMix) return detail::mulx(h, mul);
-    else if constexpr (BFLAT_RESEED_AVALANCHING)
-      return BFLAT_UNLIKELY(mul != 0) ? detail::mulx(h, mul) : h;
+    else if constexpr (kGuess) return mul != 0 ? detail::mulx(h, mul) : h;
     else return (void)mul, h;
   }
   template <typename K>
   BFLAT_FORCEINLINE uint64_t hash_of(const K& k) const {
     return mix(static_cast<uint64_t>(hash_(k)), mul_);
+  }
+  // The hash of the inline lookup: hash_of(), except that an avalanching
+  // hash is never mixed there. A check of the multiplier before every probe
+  // cost 2.5% in a 10M insert loop, so a reseeded table of such a hash
+  // (guessing()) probes with the unmixed hash first: a key found is the
+  // key (keys are unique), a miss is checked again in find_rest(), and
+  // avail_ stays 0 so that every insert takes insert_slow(). Such a table
+  // is about twice as slow, and only a pile-up makes one.
+  template <typename K>
+  BFLAT_FORCEINLINE uint64_t hot_hash(const K& k) const {
+    if constexpr (kGuess) return static_cast<uint64_t>(hash_(k));
+    else return hash_of(k);
+  }
+  // The exact hash from hot_hash(), with the current multiplier.
+  BFLAT_FORCEINLINE uint64_t exact(uint64_t hh) const noexcept {
+    if constexpr (kGuess) return mix(hh, mul_);
+    else return hh;
+  }
+  bool guessing() const noexcept { return kGuess && mul_ != 0; }
+  // A miss of the inline probe is final: no old table, exact hash.
+  BFLAT_FORCEINLINE bool miss_final() const noexcept {
+    if constexpr (kGuess) return (ong_ | mul_) == 0;
+    else return ong_ == 0;
+  }
+  // reseed_ bits: a pile-up was seen (rebuild at the next slow insert); the
+  // table is guessing() (keeps avail_ at 0 without another test).
+  static constexpr unsigned char kPileup = 1, kGuessing = 2;
+  void set_mul(uint64_t mul) noexcept {
+    mul_ = mul;
+    reseed_ = static_cast<unsigned char>((reseed_ & kPileup) | (guessing() ? kGuessing : 0));
   }
   static BFLAT_FORCEINLINE value_type* elem(slot_type* base, size_t g, unsigned l) noexcept {
     return reinterpret_cast<value_type*>(base + g * N + l);
@@ -1133,8 +1166,9 @@ class unordered_flat_map {
   // Element with key k in the old table of a migration, or nullptr.
   // Migrated groups (before front_) have no occupied slots but keep their
   // overflow byte, so the probe passes through them exactly as before the
-  // migration and stops where it would have stopped. After a reseed the old
-  // table has the previous multiplier.
+  // migration and stops where it would have stopped. h: the exact hash of
+  // the current table; after a reseed the old table has the previous
+  // multiplier.
   template <typename K>
   BFLAT_NOINLINE value_type* find_old(const K& k, uint64_t h, size_t* out_g = nullptr,
                                       unsigned* out_l = nullptr) const {
@@ -1142,23 +1176,38 @@ class unordered_flat_map {
     return find_in(ogroups_, oelems_, ong_, k, h, out_g, out_l);
   }
 
+  // After a miss of the inline probe with hh = hot_hash(k): the current
+  // table with the exact hash if the table is guessing(), then the old
+  // table. *out_g is a unified group index (ng_ + g in the old table).
+  template <typename K>
+  BFLAT_NOINLINE value_type* find_rest(const K& k, uint64_t hh, size_t* out_g = nullptr,
+                                       unsigned* out_l = nullptr) const {
+    const uint64_t h = exact(hh);
+    if (guessing())
+      if (value_type* p = find_in(groups_, elems_, ng_, k, h, out_g, out_l)) return p;
+    if (!ong_) return nullptr;
+    value_type* p = find_old(k, h, out_g, out_l);
+    if (p && out_g) *out_g += ng_;
+    return p;
+  }
+
   template <typename K>
   BFLAT_FORCEINLINE value_type* find_ptr(const K& k) const {
-    const uint64_t h = hash_of(k);
+    const uint64_t h = hot_hash(k);
     value_type* p = find_in(groups_, elems_, ng_, k, h);
-    if (BFLAT_UNLIKELY(!p) && BFLAT_UNLIKELY(ong_ != 0)) p = find_old(k, h);
+    if (BFLAT_UNLIKELY(!p) && BFLAT_UNLIKELY(!miss_final())) p = find_rest(k, h);
     return p;
   }
   template <typename K>
   BFLAT_FORCEINLINE iterator find_iter(const K& k) {
-    const uint64_t h = hash_of(k);
+    const uint64_t h = hot_hash(k);
     size_t g;
     unsigned l;
     value_type* p = find_in(groups_, elems_, ng_, k, h, &g, &l);
     if (BFLAT_LIKELY(p)) return make_iter(p, g, l);
-    if (BFLAT_UNLIKELY(ong_ != 0)) {
-      p = find_old(k, h, &g, &l);
-      if (p) return make_iter(p, ng_ + g, l);
+    if (BFLAT_UNLIKELY(!miss_final())) {
+      p = find_rest(k, h, &g, &l);
+      if (p) return make_iter(p, g, l);
     }
     return end();
   }
@@ -1271,7 +1320,7 @@ class unordered_flat_map {
 
   template <typename K, typename F>
   BFLAT_FORCEINLINE std::pair<iterator, bool> insert_impl(const K& k, F&& make) {
-    const uint64_t h = hash_of(k);
+    const uint64_t h = hot_hash(k);
 
     // boost order: find, then probe again for an available slot.
     size_t g;
@@ -1343,11 +1392,13 @@ class unordered_flat_map {
     }
   }
 
+  // hh: hot_hash(k).
   template <typename K, typename F>
-  BFLAT_NOINLINE std::pair<iterator, bool> insert_slow(const K& k, uint64_t h, F& make) {
+  BFLAT_NOINLINE std::pair<iterator, bool> insert_slow(const K& k, uint64_t hh, F& make) {
+    uint64_t h = exact(hh);
     if (ong_) {
       migrate_step(kMigrateGroups);
-    } else if (avail_ == 0) {
+    } else if (avail_ == 0 && !(kGuess && reseed_ == kGuessing && ml_ > size_)) {
       // Growth, first allocation or anti-drift rehash. As boost, only for an
       // absent key.
       size_t g;
@@ -1414,12 +1465,12 @@ class unordered_flat_map {
     if (ng_ > kMaxGroups - extra) throw std::length_error("bflat: too many elements");
     return std::max(need, ng_ + extra);
   }
-  void make_room() { grow(reseed_ ? detail::reseed_multiplier(mul_) : mul_); }
+  void make_room() { grow(reseed_ & kPileup ? detail::reseed_multiplier(mul_) : mul_); }
 
   // Growth, or a rebuild with a new multiplier (at the same capacity when
   // the elements fit).
   void grow(uint64_t mul) {
-    reseed_ = false;
+    reseed_ &= static_cast<unsigned char>(~kPileup);
     if (mul != mul_) reseed_size_ = size_;
     const size_t g = grown_groups();
     constexpr unsigned long long at_once_below = BFLAT_GROW_AT_ONCE_BELOW;
@@ -1438,7 +1489,7 @@ class unordered_flat_map {
   // hash that no multiplier helps costs O(1) rebuilds per element.
   void note_pileup() noexcept {
     if (kReseedSteps != 0 && size_ >= 2 * reseed_size_) {
-      reseed_ = true;
+      reseed_ |= kPileup;
       avail_ = 0;
     }
   }
@@ -1462,7 +1513,8 @@ class unordered_flat_map {
       groups_ = ngr;
       elems_ = nel;
       ng_ = g;
-      mul_ = omul_ = mul;
+      set_mul(mul);
+      omul_ = mul;
       set_limits();
       reset_avail();
       return;
@@ -1471,7 +1523,7 @@ class unordered_flat_map {
     oelems_ = elems_;
     ong_ = ng_;
     omul_ = mul_;
-    mul_ = mul;
+    set_mul(mul);
     front_ = 0;
     old_released_ = 0;
     huge_hint_ = 0;
@@ -1571,15 +1623,21 @@ class unordered_flat_map {
   // -------------------------------------------------------------- erase
   template <typename K>
   BFLAT_FORCEINLINE size_t erase_key(const K& k) {
-    const uint64_t h = hash_of(k);
+    const uint64_t h = hot_hash(k);
     size_t g;
     unsigned l;
     if (find_in(groups_, elems_, ng_, k, h, &g, &l)) {
       erase_new(g, l);
       return 1;
     }
-    if (BFLAT_UNLIKELY(ong_ != 0) && find_old(k, h, &g, &l)) {
-      erase_old(g, l);
+    if constexpr (!kGuess) {
+      if (BFLAT_UNLIKELY(ong_ != 0) && find_old(k, h, &g, &l)) {
+        erase_old(g, l);
+        return 1;
+      }
+    } else if (BFLAT_UNLIKELY(!miss_final()) && find_rest(k, h, &g, &l)) {
+      if (g < ng_) erase_new(g, l);
+      else erase_old(g - ng_, l);
       return 1;
     }
     return 0;
@@ -1638,7 +1696,7 @@ class unordered_flat_map {
     ng_ = 0;
     mul_ = omul_ = kInitialMul;
     reseed_size_ = 0;
-    reseed_ = false;
+    reseed_ = 0;
     size_ = 0;
     ml_ = 0;
     lim_ = 0;
@@ -1778,7 +1836,7 @@ class unordered_flat_map {
   size_t huge_hint_ = 0;      // bytes of new elements with MADV_HUGEPAGE
   uint64_t omul_ = kInitialMul;  // multiplier of the old table
   size_t reseed_size_ = 0;       // size_ at the last reseed
-  bool reseed_ = false;          // pile-up seen: rebuild at the next slow insert
+  unsigned char reseed_ = 0;     // kPileup | kGuessing
   Hash hash_;
   KeyEqual eq_;
   Allocator al_;

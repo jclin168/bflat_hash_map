@@ -72,6 +72,15 @@ struct ThrowHash {
     return std::hash<uint64_t>()(k);
   }
 };
+// Avalanching (used unmixed): mulx with the boost constant.
+struct ThrowAvalHash {
+  using is_avalanching = void;
+  size_t operator()(uint64_t k) const {
+    if (k == g_throw_key) throw HashError();
+    const __uint128_t r = static_cast<__uint128_t>(k) * 0x9E3779B97F4A7C15ull;
+    return static_cast<size_t>(static_cast<uint64_t>(r) ^ static_cast<uint64_t>(r >> 64));
+  }
+};
 
 struct CopyError : std::runtime_error {
   CopyError() : std::runtime_error("copy") {}
@@ -189,8 +198,9 @@ static void test_throwing_hash() {
 // iteration order pile up and make the table take a new multiplier; a throw
 // in that rebuild (at once or incremental) leaves the old table with the
 // previous multiplier until the migration ends.
+template <typename H>
 static void test_throwing_hash_reseed() {
-  using Map = bflat::unordered_flat_map<uint64_t, uint64_t, ThrowHash>;
+  using Map = bflat::unordered_flat_map<uint64_t, uint64_t, H>;
   Map a;
   for (uint64_t k = 0; k < 200000; ++k) a.emplace(k * 0x9E3779B97F4A7C15ull, k);
   Map b;
@@ -216,6 +226,97 @@ static void test_throwing_hash_reseed() {
   b.finish_migration();
   CHECK(b.check_invariants() && b == a);
   std::printf("  throwing hash during a reseed: thrown=%d\n", thrown);
+}
+
+// Fraction of elements whose unmixed home group is below that of the
+// element 32 places before in iteration order (another group): about 0
+// for a table that uses an avalanching hash unmixed, about 1/2 once it is
+// reseeded. (Within a group, lanes keep the insertion order.)
+template <typename M>
+static double home_descents(const M& m) {
+  const uint64_t ng = (m.bucket_count() + 1) / 15;
+  uint64_t ring[32] = {}, down = 0, i = 0;
+  for (auto& kv : m) {
+    const uint64_t h = static_cast<uint64_t>(m.hash_function()(kv.first));
+    const uint64_t g = static_cast<uint64_t>((static_cast<__uint128_t>(h) * ng) >> 64);
+    down += i >= 32 && g < ring[i % 32];
+    ring[i++ % 32] = g;
+  }
+  return m.size() <= 32 ? 0.0 : static_cast<double>(down) / (m.size() - 32);
+}
+
+// A table of an avalanching hash reseeded by a pile-up probes with the
+// unmixed hash first and checks a miss with the mixed one: random
+// operations against std::unordered_map, during and after its migration,
+// with erase while iterating, copy, move, swap and clear.
+static void test_reseeded_avalanching(uint64_t seed, size_t ops) {
+  using Map = bflat::unordered_flat_map<uint64_t, uint64_t, ThrowAvalHash>;
+  std::mt19937_64 rng(seed);
+  Map a;
+  for (size_t i = 0; i < 200000; ++i) a.emplace(rng(), i);
+  a.finish_migration();
+  CHECK(home_descents(a) < 0.05);
+  Map b;
+  std::unordered_map<uint64_t, uint64_t> ref;
+  for (auto& kv : a) b.emplace(kv.first, kv.second), ref.emplace(kv.first, kv.second);
+  const bool was_migrating = b.is_migrating();
+  b.finish_migration();
+  std::printf("  descents: source %.3f, its iteration order inserted %.3f\n", home_descents(a),
+              home_descents(b));
+  CHECK(home_descents(b) > 0.2);  // reseeded (else the copy was quadratic)
+  CHECK(b == a && b.check_invariants());
+  std::vector<uint64_t> keys;
+  for (auto& kv : ref) keys.push_back(kv.first);
+  bool ok = true;
+  size_t migrating = 0;
+  for (size_t i = 0; i < ops; ++i) {
+    const unsigned op = static_cast<unsigned>(rng() % 8);
+    const uint64_t k = (rng() & 1) && !keys.empty() ? keys[rng() % keys.size()] : rng();
+    if (op < 3) {
+      const bool ins = b.emplace(k, i).second;
+      ok &= ins == ref.emplace(k, i).second;
+      if (ins) keys.push_back(k);
+    } else if (op < 5) {
+      ok &= b.erase(k) == ref.erase(k);
+    } else if (op < 7) {
+      auto it = b.find(k);
+      auto jt = ref.find(k);
+      ok &= (it == b.end()) == (jt == ref.end());
+      if (it != b.end() && jt != ref.end()) ok &= it->first == k && it->second == jt->second;
+      ok &= b.contains(k) == (jt != ref.end()) && b.count(k) == ref.count(k);
+    } else {
+      b[k] = i;
+      ref[k] = i;
+      keys.push_back(k);
+    }
+    migrating += b.is_migrating();
+    if (i % 50000 == 0) ok &= b.check_invariants() && b.size() == ref.size();
+  }
+  CHECK(ok && b.size() == ref.size() && b.check_invariants());
+  for (auto& kv : ref) ok &= b.contains(kv.first) && b.at(kv.first) == kv.second;
+  CHECK(ok);
+  // Erase while iterating; copy, move, swap with a table that is not reseeded.
+  for (auto it = b.begin(); it != b.end();) {
+    if (it->first % 3 == 0) ref.erase(it->first), it = b.erase(it);
+    else ++it;
+  }
+  CHECK(b.size() == ref.size() && b.check_invariants());
+  Map c = b;
+  CHECK(c == b && c.check_invariants());
+  Map d = std::move(c);
+  CHECK(d == b && d.check_invariants());
+  Map e;
+  e.emplace(1, 1);
+  swap(d, e);
+  CHECK(e == b && d.size() == 1 && d.at(1) == 1 && e.check_invariants() && d.check_invariants());
+  ok = true;
+  for (auto& kv : ref) ok &= e.find(kv.first) != e.end() && !e.emplace(kv.first, 0).second;
+  CHECK(ok);
+  e.clear();
+  for (size_t i = 0; i < 1000; ++i) e.emplace(i * 0x9E3779B97F4A7C15ull, i);
+  CHECK(e.size() == 1000 && e.check_invariants() && home_descents(e) < 0.05);
+  std::printf("  reseeded avalanching table: %zu ops (%zu migrating, %d at the start)\n", ops,
+              migrating, int(was_migrating));
 }
 
 static void test_size_limits() {
@@ -472,7 +573,9 @@ int main(int argc, char** argv) {
   if (want("range")) test_range_insert_no_shrink();
   if (want("alloc")) test_allocator_propagation();
   if (want("hash")) test_throwing_hash();
-  if (want("hashreseed")) test_throwing_hash_reseed();
+  if (want("hashreseed")) test_throwing_hash_reseed<ThrowHash>();
+  if (want("hashreseed")) test_throwing_hash_reseed<ThrowAvalHash>();
+  if (want("guess") && BFLAT_RESEED_AVALANCHING) test_reseeded_avalanching(seed, S(300000));
   if (want("iter")) test_iterator_edges();
   if (want("moveonly")) test_move_only_and_strings();
   if (want("throwmove")) test_throwing_move_migration();

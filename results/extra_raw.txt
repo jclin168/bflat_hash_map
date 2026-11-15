@@ -1,0 +1,25 @@
+round=1 FIND map=bflat n=13762559 ins_r_ns=36.29 hit_ns=35.47 miss_ns=24.79
+round=1 FIND map=bflat_nothp n=13762559 ins_r_ns=43.61 hit_ns=35.03 miss_ns=28.18
+round=1 FIND map=boost n=13762559 ins_r_ns=47.07 hit_ns=34.42 miss_ns=31.45
+round=1 FIND map=sflat n=13762559 ins_r_ns=40.56 hit_ns=37.98 miss_ns=30.98
+round=1 FIND map=bflat n=50000000 ins_r_ns=50.27 hit_ns=38.60 miss_ns=27.83
+round=1 FIND map=bflat_nothp n=50000000 ins_r_ns=80.18 hit_ns=53.73 miss_ns=33.53
+round=1 FIND map=boost n=50000000 ins_r_ns=96.21 hit_ns=53.55 miss_ns=30.11
+round=1 FIND map=sflat n=50000000 ins_r_ns=54.22 hit_ns=40.94 miss_ns=35.27
+round=2 FIND map=bflat n=13762559 ins_r_ns=37.44 hit_ns=35.60 miss_ns=24.79
+round=2 FIND map=bflat_nothp n=13762559 ins_r_ns=47.34 hit_ns=36.05 miss_ns=29.49
+round=2 FIND map=boost n=13762559 ins_r_ns=55.78 hit_ns=36.57 miss_ns=32.65
+round=2 FIND map=sflat n=13762559 ins_r_ns=40.75 hit_ns=37.33 miss_ns=30.82
+round=2 FIND map=bflat n=50000000 ins_r_ns=51.12 hit_ns=39.63 miss_ns=28.20
+round=2 FIND map=bflat_nothp n=50000000 ins_r_ns=87.66 hit_ns=57.33 miss_ns=34.31
+round=2 FIND map=boost n=50000000 ins_r_ns=88.77 hit_ns=55.92 miss_ns=30.61
+round=2 FIND map=sflat n=50000000 ins_r_ns=51.49 hit_ns=38.55 miss_ns=33.69
+round=3 FIND map=bflat n=13762559 ins_r_ns=37.12 hit_ns=33.95 miss_ns=24.25
+round=3 FIND map=bflat_nothp n=13762559 ins_r_ns=41.73 hit_ns=34.12 miss_ns=27.78
+round=3 FIND map=boost n=13762559 ins_r_ns=46.27 hit_ns=33.48 miss_ns=30.91
+round=3 FIND map=sflat n=13762559 ins_r_ns=38.42 hit_ns=35.34 miss_ns=28.22
+round=3 FIND map=bflat n=50000000 ins_r_ns=49.01 hit_ns=38.87 miss_ns=28.06
+round=3 FIND map=bflat_nothp n=50000000 ins_r_ns=83.77 hit_ns=54.78 miss_ns=32.89
+round=3 FIND map=boost n=50000000 ins_r_ns=88.37 hit_ns=54.67 miss_ns=30.79
+round=3 FIND map=sflat n=50000000 ins_r_ns=51.95 hit_ns=39.55 miss_ns=34.66
+ALLDONE

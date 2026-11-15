@@ -94,9 +94,10 @@
 #if !defined(BFLAT_PREFETCH)
 #define BFLAT_PREFETCH 1
 #endif
-// Reduced hash: 0 = arithmetic (x | (x < 2) << 3), 1 = boost's 256-byte table.
+// Reduced hash: 1 = boost's 256-byte table (default; the arithmetic form was
+// not faster in the A/B), 0 = arithmetic (x | (x < 2) << 3).
 #if !defined(BFLAT_RH_TABLE)
-#define BFLAT_RH_TABLE 0
+#define BFLAT_RH_TABLE 1
 #endif
 
 #if !defined(BFLAT_NO_SIMD)
@@ -317,6 +318,15 @@ struct alignas(16) group15 {
 #endif
 
   static BFLAT_FORCEINLINE unsigned lane(Mask x) noexcept { return ctz64(x) >> kShift; }
+  // Byte offset of the lowest matching lane in an array of S-byte slots.
+  // With 4 bits per lane (NEON shrn) ctz is a multiple of 4, so for S a
+  // multiple of 4 the offset is ctz * (S / 4): one shift, folded into the
+  // load's addressing mode, instead of a shift right and a shift left.
+  template <size_t S>
+  static BFLAT_FORCEINLINE size_t byte_offset(Mask x) noexcept {
+    if constexpr (kShift == 2 && S % 4 == 0) return static_cast<size_t>(ctz64(x)) * (S / 4);
+    else return static_cast<size_t>(lane(x)) * S;
+  }
   // Lanes >= l.
   static BFLAT_FORCEINLINE Mask from_lane(unsigned l) noexcept {
     return static_cast<Mask>(~Mask(0) << (l << kShift));
@@ -1063,10 +1073,10 @@ class unordered_flat_map {
         BFLAT_PREFETCH_ADDR(base);
 #endif
         do {
-          const unsigned l = group::lane(m);
-          value_type* e = reinterpret_cast<value_type*>(base + l);
+          value_type* e = reinterpret_cast<value_type*>(
+              reinterpret_cast<char*>(base) + group::byte_offset<sizeof(slot_type)>(m));
           if (BFLAT_LIKELY(eq_(k, e->first))) {
-            if (out_g) { *out_g = pb.pos; *out_l = l; }
+            if (out_g) { *out_g = pb.pos; *out_l = group::lane(m); }
             return e;
           }
           m &= m - 1;
@@ -1188,9 +1198,9 @@ class unordered_flat_map {
     if (m) {
       slot_type* base = elems_ + pos * N;
       do {
-        const unsigned l = group::lane(m);
-        value_type* e = reinterpret_cast<value_type*>(base + l);
-        if (eq_(k, e->first)) return {iterator(this, e, pos * N + l), false};
+        value_type* e = reinterpret_cast<value_type*>(
+            reinterpret_cast<char*>(base) + group::byte_offset<sizeof(slot_type)>(m));
+        if (eq_(k, e->first)) return {iterator(this, e, pos * N + group::lane(m)), false};
         m &= m - 1;
       } while (m);
     }

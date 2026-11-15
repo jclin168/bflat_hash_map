@@ -18,7 +18,7 @@ wait
 build_var bflat_pf0 "-DBFLAT_PREFETCH=0" &
 build_var bflat_pf2 "-DBFLAT_PREFETCH=2" &
 wait
-build_var bflat_rhtable "-DBFLAT_RH_TABLE=1" &
+build_var bflat_rharith "-DBFLAT_RH_TABLE=0" &
 build_var bflat_nothp "-DBFLAT_USE_THP=0" &
 wait
 ls build/bench_*

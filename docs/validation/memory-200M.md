@@ -1,10 +1,10 @@
 # 200M RSS / VM：採用 reserve +12.5%
 
-採用的是 tiered 任意 group 數版本 bflat，加工作負載層級的 `reserve(N + N/8 + (N%8 != 0))`。未採用 metadata-only 實驗修正版，也未更改容器的 reserve API、探測、插入或 anti-drift 設計。
+bflat 使用任意 group 數與分級成長，工作負載設定為 `reserve(N + N/8 + (N%8 != 0))`。reserve 預留由呼叫端控制，探測、插入與 anti-drift 採用容器預設策略。
 
 200M uint64 key → uint64 value；線上產生雙射唯一 key，const pair& emplace，無 O(N) 輸入陣列。每容器兩種 reserve：200M 對照與 225M 採用方案。填滿後完成公開可用的 migration，接著做 20M 次先插入再刪除，活元素維持 200M；刪除不同的原始 key，新 key 不重複。最後再次完成 migration。每配置一個新程序、單次記憶體測試、依序執行、CPU 0。
 
-Boost 1.92；sflat 使用前次 emplace 改善版；bflat SHA256 84c0d8a82f094b41f726b47053a82190c5932a58c59e24fdec1d9c87783ca16d。GCC 14.2、C++17、-O3 -DNDEBUG -march=native、SFLAT_PROCESS_SEED=1。8 GiB cgroup，無 swap。
+Boost 1.92；sflat 使用 pair-emplace 最佳化版本；bflat SHA256 84c0d8a82f094b41f726b47053a82190c5932a58c59e24fdec1d9c87783ca16d。GCC 14.2、C++17、-O3 -DNDEBUG -march=native、SFLAT_PROCESS_SEED=1。8 GiB cgroup，無 swap。
 
 五配置完整完成，均檢查插入成功、20M 次插入／刪除數量、最終 size 與 key/value 抽樣。Boost reserve(225M) 跨容量級距，在 RSS 超過測試設定的 7 GiB 時停止，並非配置已完成或發生 OOM。其結果分開記錄。RSS 取 smaps_rollup，VM 取 /proc/status，GiB = 2^30 bytes，未扣程序 baseline。峰值合併 VmHWM/getrusage、VmPeak 與外部監測，RSS 與 VM 峰值不保證同時發生。VM 是位址保留，不等於實體記憶體用量。
 
@@ -37,4 +37,4 @@ boost reserve(225M)：實際容量 503,316,479；已確認插入 3,961,856 筆�
 
 這是特定筆數與 20M churn 的單次記憶體評估，非耗時或延遲 benchmark，也不代表任意長 churn 永遠不需 rehash。採用額外 reserve 後，bflat 仍保留原本 anti-drift，耗盡時仍可能同容量重建。Boost 的容量取整可能使相同 reserve 增幅跨級，需看實際容量。
 
-本輪 bflat 與舊 200M 報告的 power-of-two Boost-policy 版本不同，不混用舊結果。memory.png/svg 僅畫本輪資料；x=0..200 是填入筆數，200..220 是後續 churn pairs。summary.json/csv、raw CSV 與外部監測樣本保留完整數字；memory.cpp/run.py/commands.json/environment.json 提供重現資訊。先執行 python3 run.py，再執行 python3 report.py；Boost include 路徑需按環境調整。
+此資料使用任意 group 數版本，不與其他容量策略的結果合併。memory.png/svg 僅畫此資料集；x=0..200 是填入筆數，200..220 是後續 churn pairs。summary.json/csv、raw CSV 與外部監測樣本保留完整數字；memory.cpp/run.py/commands.json/environment.json 提供重現資訊。先執行 python3 run.py，再執行 python3 report.py；Boost include 路徑需按環境調整。

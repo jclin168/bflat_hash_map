@@ -185,6 +185,39 @@ static void test_throwing_hash() {
   std::printf("  throwing hash: ok (migrating=%d)\n", int(i < 5000000));
 }
 
+// A hash that throws while a table rebuilds: keys in another table's
+// iteration order pile up and make the table take a new multiplier; a throw
+// in that rebuild (at once or incremental) leaves the old table with the
+// previous multiplier until the migration ends.
+static void test_throwing_hash_reseed() {
+  using Map = bflat::unordered_flat_map<uint64_t, uint64_t, ThrowHash>;
+  Map a;
+  for (uint64_t k = 0; k < 200000; ++k) a.emplace(k * 0x9E3779B97F4A7C15ull, k);
+  Map b;
+  std::vector<uint64_t> order;
+  int thrown = 0;
+  bool inv = true;
+  for (auto& kv : a) {
+    // A key inserted earlier: hashing it throws only when it is moved.
+    g_throw_key = order.size() > 1 ? order[order.size() / 2] : ~0ull;
+    try {
+      b.emplace(kv.first, kv.second);
+    } catch (const HashError&) {
+      ++thrown;
+      g_throw_key = ~0ull;
+      inv &= b.check_invariants();
+      b.emplace(kv.first, kv.second);
+    }
+    order.push_back(kv.first);
+  }
+  g_throw_key = ~0ull;
+  CHECK(thrown > 0 && inv);
+  CHECK(b.size() == a.size() && b == a);
+  b.finish_migration();
+  CHECK(b.check_invariants() && b == a);
+  std::printf("  throwing hash during a reseed: thrown=%d\n", thrown);
+}
+
 static void test_size_limits() {
   using Map = bflat::unordered_flat_map<uint64_t, uint64_t>;
   Map m;
@@ -439,6 +472,7 @@ int main(int argc, char** argv) {
   if (want("range")) test_range_insert_no_shrink();
   if (want("alloc")) test_allocator_propagation();
   if (want("hash")) test_throwing_hash();
+  if (want("hashreseed")) test_throwing_hash_reseed();
   if (want("iter")) test_iterator_edges();
   if (want("moveonly")) test_move_only_and_strings();
   if (want("throwmove")) test_throwing_move_migration();

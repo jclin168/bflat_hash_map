@@ -1,14 +1,29 @@
 [avalanching] PASS
 [avalanching_boost] PASS
   growth: 19 capacity changes up to 7864319 slots
+  iteration order insert: 0.074 s, shuffled 0.060 s
+  iteration order insert: 0.771 s, shuffled 0.065 s
+  iteration: 3.68 ns per element, vector 0.75 ns
 test_api: PASS (0 failures)
 [api] PASS
   growth: 57 capacity changes up to 7338974 slots
+  iteration order insert: 0.231 s, shuffled 0.214 s
+  iteration order insert: 2.973 s, shuffled 0.219 s
+  iteration: 3.05 ns per element, vector 0.75 ns
 test_api: PASS (0 failures)
 [api_tiers] PASS
   growth: 19 capacity changes up to 7864319 slots
+  iteration order insert: 0.075 s, shuffled 0.061 s
+  iteration order insert: 0.780 s, shuffled 0.064 s
+  iteration: 3.84 ns per element, vector 0.78 ns
 test_api: PASS (0 failures)
 [api_incremental] PASS
+  growth: 19 capacity changes up to 7864319 slots
+  iteration order insert: 0.073 s, shuffled 0.059 s
+  iteration order insert: 0.074 s, shuffled 0.062 s
+  iteration: 3.69 ns per element, vector 0.75 ns
+test_api: PASS (0 failures)
+[api_reseed_aval] PASS
 bflat test_diff seed=101 scale=1.00 grow_at_once_below=2097152 migrate_groups=16
   u64 small keyspace           ops=2000000 final_size=193 migrating_ops=0
   u64 large keyspace           ops=3000000 final_size=12873 migrating_ops=0
@@ -43,8 +58,15 @@ bflat test_diff seed=105 scale=0.30 grow_at_once_below=0 migrate_groups=16
 PASS (0 failures)
 [diff_scalar] PASS
   growth: 19 capacity changes up to 7864319 slots
+  iteration order insert: 0.490 s, shuffled 0.476 s
+  iteration order insert: 2.434 s, shuffled 0.457 s
 test_api: PASS (0 failures)
 [asan_api] PASS
+  growth: 19 capacity changes up to 7864319 slots
+  iteration order insert: 0.479 s, shuffled 0.480 s
+  iteration order insert: 0.483 s, shuffled 0.468 s
+test_api: PASS (0 failures)
+[asan_api_reseed_aval] PASS
 bflat test_diff seed=107 scale=0.25 grow_at_once_below=0 migrate_groups=3
   u64 small keyspace           ops=500000 final_size=190 migrating_ops=2945
   u64 large keyspace           ops=750000 final_size=34527 migrating_ops=215466
@@ -64,6 +86,7 @@ bflat test_review seed=1 scale=1.00 grow_at_once_below=2097152 migrate_groups=16
   throwing hash during migration: thrown=50 migrating=1
   throwing hash during migration: thrown=0 migrating=0
   throwing hash: ok (migrating=1)
+  throwing hash during a reseed: thrown=18
   iterator edges: ok
   move-only values: ok
   throwing move during migration: thrown=2000 size=107520
@@ -95,6 +118,7 @@ bflat test_review seed=2 scale=0.50 grow_at_once_below=0 migrate_groups=2
   throwing hash during migration: thrown=50 migrating=1
   throwing hash during migration: thrown=0 migrating=0
   throwing hash: ok (migrating=1)
+  throwing hash during a reseed: thrown=26
   iterator edges: ok
   move-only values: ok
   throwing move during migration: thrown=6 size=53
@@ -126,6 +150,7 @@ bflat test_review seed=3 scale=0.30 grow_at_once_below=0 migrate_groups=16
   throwing hash during migration: thrown=50 migrating=1
   throwing hash during migration: thrown=0 migrating=0
   throwing hash: ok (migrating=1)
+  throwing hash during a reseed: thrown=18
   iterator edges: ok
   move-only values: ok
   throwing move during migration: thrown=52 size=421
@@ -157,6 +182,7 @@ bflat test_review seed=4 scale=0.25 grow_at_once_below=0 migrate_groups=3
   throwing hash during migration: thrown=50 migrating=1
   throwing hash during migration: thrown=0 migrating=0
   throwing hash: ok (migrating=1)
+  throwing hash during a reseed: thrown=21
   iterator edges: ok
   move-only values: ok
   throwing move during migration: thrown=3 size=53

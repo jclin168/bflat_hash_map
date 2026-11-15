@@ -18,6 +18,7 @@
 #define BFLAT_UNORDERED_FLAT_MAP_HPP
 
 #include <algorithm>
+#include <atomic>
 #include <cassert>
 #include <cmath>
 #include <cstddef>
@@ -74,6 +75,17 @@ static_assert(BFLAT_GROW_2X_BELOW <= BFLAT_GROW_1_5X_BELOW &&
 // sflat moves 256 slots).
 #if !defined(BFLAT_MIGRATE_GROUPS)
 #define BFLAT_MIGRATE_GROUPS 16
+#endif
+// A table whose inserts probe this many groups past the home group takes a
+// new hash multiplier (see note_pileup()). 0: never.
+#if !defined(BFLAT_RESEED_STEPS)
+#define BFLAT_RESEED_STEPS 64
+#endif
+// 1: a table with an avalanching hash (used unmixed) reseeds too, by mixing
+// the hash from then on. The check of the multiplier costs about 3% in an
+// insert loop, so by default such a table keeps the pile-up.
+#if !defined(BFLAT_RESEED_AVALANCHING)
+#define BFLAT_RESEED_AVALANCHING 0
 #endif
 // NEON match: 1 = cmeq + shrn #4 (4 bits per lane, sflat style),
 // 0 = boost's movemask emulation (vand + vzip + vaddv).
@@ -155,9 +167,9 @@ struct hash_is_avalanching
 
 namespace detail {
 
-// boost::unordered::detail::mulx (64-bit).
-inline uint64_t mulx(uint64_t x) noexcept {
-  constexpr uint64_t C = 0x9E3779B97F4A7C15ull;
+// boost::unordered::detail::mulx (64-bit), with the multiplier of the table.
+inline constexpr uint64_t kMulx = 0x9E3779B97F4A7C15ull;
+inline uint64_t mulx(uint64_t x, uint64_t C) noexcept {
 #if defined(__SIZEOF_INT128__)
   const __uint128_t r = static_cast<__uint128_t>(x) * C;
   return static_cast<uint64_t>(r) ^ static_cast<uint64_t>(r >> 64);
@@ -169,6 +181,27 @@ inline uint64_t mulx(uint64_t x) noexcept {
   const uint64_t lo = (cross << 32) | (ac & 0xFFFFFFFFu);
   return lo ^ hi;
 #endif
+}
+
+// Multipliers of a reseeded table. Candidate k is splitmix64(k) | 1; kept if
+// 12 patterns of regular keys (sequential, strided, aligned pointers,
+// shifted) spread over all reduced hashes, all overflow bits and at least
+// 960 of 1024 home groups, as random hashes do (the boost constant passes).
+inline constexpr uint64_t kReseedMultipliers[16] = {
+    0x975835DE1C9756CFull, 0x118E846EA93BC949ull, 0xBDD732262FEB6E95ull,
+    0xF9B44ECD07B4404Bull, 0x9691C38B30D2B83Dull, 0x322F69AFA8A70BEBull,
+    0x051C9D6DBC0A79CBull, 0xD0B1B125E467DAAFull, 0xBD9E8145F2FA917Bull,
+    0xD0F8252577628D87ull, 0xF0EEA8C8A0607D15ull, 0xB32F0F46FBFBCCDFull,
+    0xDABE0BD2457BFF71ull, 0xE6877908A812DEA1ull, 0xB08A3CC9EFB60979ull,
+    0xEB9F627FE00EA9EDull};
+// The next multiplier in turn; never cur (the boost constant is not in the
+// list).
+inline uint64_t reseed_multiplier(uint64_t cur) noexcept {
+  static std::atomic<unsigned> next{0};
+  uint64_t m;
+  do m = kReseedMultipliers[next.fetch_add(1, std::memory_order_relaxed) % 16];
+  while (m == cur);
+  return m;
 }
 
 // Monotonic range reduction for arbitrary group counts.
@@ -236,8 +269,11 @@ struct alignas(16) group15 {
   static BFLAT_FORCEINLINE Mask match_available(Vec v) noexcept {
     return static_cast<Mask>(_mm_movemask_epi8(_mm_cmpeq_epi8(v, _mm_setzero_si128()))) & kAll;
   }
+  // Occupied: byte > 1 (0 available, 1 sentinel); one signed compare.
   static BFLAT_FORCEINLINE Mask match_occupied(Vec v) noexcept {
-    return ~(match(v, 0) | match(v, 1)) & kAll;
+    const __m128i x = _mm_xor_si128(v, _mm_set1_epi8(static_cast<char>(0x80)));
+    return static_cast<Mask>(_mm_movemask_epi8(
+               _mm_cmpgt_epi8(x, _mm_set1_epi8(static_cast<char>(0x81))))) & kAll;
   }
 #elif defined(BFLAT_NEON) && BFLAT_NEON_SHRN
   using Mask = uint64_t;
@@ -482,6 +518,8 @@ class unordered_flat_map {
   static constexpr size_t kSlotAlign =
       alignof(slot_type) > detail::kCacheLine ? alignof(slot_type) : detail::kCacheLine;
   static constexpr size_t kMigrateGroups = BFLAT_MIGRATE_GROUPS;
+  static constexpr size_t kReseedSteps =
+      kMix || BFLAT_RESEED_AVALANCHING ? BFLAT_RESEED_STEPS : 0;
   static constexpr size_t kMaxGroups =
       std::numeric_limits<size_t>::max() / (sizeof(slot_type) * N + sizeof(group)) / 2;
 
@@ -493,10 +531,13 @@ class unordered_flat_map {
 
  public:
   // ---------------------------------------------------------- iterators
-  // An iterator holds the map, its element and the unified slot index:
-  // [0, groups * 15) for the current table, then the old table of an ongoing
-  // migration. (boost's iterator is two pointers; bflat needs the map to
-  // cross from the new table into the old one.)
+  // An iterator holds the map, its element, its group's metadata and first
+  // slot, and the mask of the lanes after its own. (boost's iterator is two
+  // pointers; bflat needs the map to cross from the new table into the old
+  // one.) An increment reads the metadata again, so an erased element is
+  // never visited. Within a group, and into a following non-empty group, it
+  // needs neither the map nor a division by 15: the chain from one element
+  // to the next is an and, a negate and an xor.
   template <bool IsConst>
   class iterator_impl {
    public:
@@ -508,12 +549,15 @@ class unordered_flat_map {
 
     iterator_impl() noexcept = default;
     template <bool O, typename = typename std::enable_if<IsConst && !O>::type>
-    iterator_impl(const iterator_impl<O>& o) noexcept : m_(o.m_), p_(o.p_), i_(o.i_) {}
+    iterator_impl(const iterator_impl<O>& o) noexcept
+        : m_(o.m_), p_(o.p_), g_(o.g_), b_(o.b_), r_(o.r_) {}
 
     reference operator*() const noexcept { return *p_; }
     pointer operator->() const noexcept { return p_; }
-    iterator_impl& operator++() noexcept {
-      m_->advance(i_ + 1, i_, p_);
+    BFLAT_FORCEINLINE iterator_impl& operator++() noexcept {
+      if (BFLAT_UNLIKELY(!unordered_flat_map::next_in_group(g_, b_, r_, p_)) &&
+          !unordered_flat_map::first_of_next(g_, b_, r_, p_))
+        m_->next_group(g_, b_, r_, p_);
       return *this;
     }
     iterator_impl operator++(int) noexcept {
@@ -532,11 +576,14 @@ class unordered_flat_map {
     friend class unordered_flat_map;
     template <bool>
     friend class iterator_impl;
-    iterator_impl(const unordered_flat_map* m, value_type* p, size_t i) noexcept
-        : m_(m), p_(p), i_(i) {}
+    iterator_impl(const unordered_flat_map* m, value_type* p, const group* g, slot_type* b,
+                  Mask r) noexcept
+        : m_(m), p_(p), g_(g), b_(b), r_(r) {}
     const unordered_flat_map* m_ = nullptr;
     value_type* p_ = nullptr;
-    size_t i_ = 0;
+    const group* g_ = nullptr;  // metadata of p_'s group
+    slot_type* b_ = nullptr;    // first slot of p_'s group
+    Mask r_ = 0;                // lanes after p_'s
   };
   using iterator = iterator_impl<false>;
   using const_iterator = iterator_impl<true>;
@@ -545,11 +592,13 @@ class unordered_flat_map {
   // converted (as boost's erase_return_type).
   struct erase_return_type {
     const unordered_flat_map* m;
-    size_t i;
+    value_type* p;
+    const group* g;
+    slot_type* b;
+    Mask r;
     operator iterator() const noexcept {
-      iterator r(m, nullptr, 0);
-      m->advance(i + 1, r.i_, r.p_);
-      return r;
+      iterator it(m, p, g, b, r);
+      return ++it;
     }
     operator const_iterator() const noexcept { return iterator(*this); }
   };
@@ -659,14 +708,16 @@ class unordered_flat_map {
 
   // ----------------------------------------------------------- iteration
   iterator begin() noexcept {
-    iterator r(this, nullptr, 0);
-    advance(0, r.i_, r.p_);
+    iterator r(this, nullptr, nullptr, nullptr, 0);
+    first_from(0, r.g_, r.b_, r.r_, r.p_);
     return r;
   }
   const_iterator begin() const noexcept { return const_cast<unordered_flat_map*>(this)->begin(); }
   const_iterator cbegin() const noexcept { return begin(); }
-  iterator end() noexcept { return iterator(this, nullptr, 0); }
-  const_iterator end() const noexcept { return const_iterator(this, nullptr, 0); }
+  iterator end() noexcept { return iterator(this, nullptr, nullptr, nullptr, 0); }
+  const_iterator end() const noexcept {
+    return const_iterator(this, nullptr, nullptr, nullptr, 0);
+  }
   const_iterator cend() const noexcept { return end(); }
 
   // ------------------------------------------------------------ capacity
@@ -778,16 +829,17 @@ class unordered_flat_map {
   // erase never moves other elements (also during a migration).
   erase_return_type erase(iterator pos) noexcept { return erase(const_iterator(pos)); }
   erase_return_type erase(const_iterator pos) noexcept {
-    erase_at(pos.i_);
-    return {this, pos.i_};
+    erase_at(pos.g_, pos.r_);
+    return {this, pos.p_, pos.g_, pos.b_, pos.r_};
   }
   iterator erase(const_iterator first, const_iterator last) noexcept {
     while (first != last) {
-      const size_t i = first.i_;
+      const group* g = first.g_;
+      const Mask r = first.r_;
       ++first;
-      erase_at(i);
+      erase_at(g, r);
     }
-    return iterator(this, last.p_, last.i_);
+    return iterator(this, last.p_, last.g_, last.b_, last.r_);
   }
   BFLAT_FORCEINLINE size_type erase(const key_type& k) {
     return erase_key(k);
@@ -809,6 +861,7 @@ class unordered_flat_map {
       set_limits();
     }
     size_ = 0;
+    reseed_ = false;
     reset_avail();
   }
 
@@ -922,7 +975,7 @@ class unordered_flat_map {
         }
     if (cnt != size_) return false;
     if ((size_ > ml_ || size_ > lim_) && ng_ > 0) return false;
-    if (!ong_ && avail_ != std::min(ml_, lim_) - size_) return false;
+    if (!ong_ && avail_ != (reseed_ ? 0 : std::min(ml_, lim_) - size_)) return false;
     if (ong_ && avail_ != 0) return false;
     return true;
   }
@@ -944,11 +997,18 @@ class unordered_flat_map {
 
  private:
   // ------------------------------------------------------------ helpers
+  // The user hash mixed with the table's multiplier. An avalanching hash is
+  // used as is (until a reseed with BFLAT_RESEED_AVALANCHING; multiplier 0).
+  static constexpr uint64_t kInitialMul = kMix ? detail::kMulx : 0;
+  static BFLAT_FORCEINLINE uint64_t mix(uint64_t h, uint64_t mul) noexcept {
+    if constexpr (kMix) return detail::mulx(h, mul);
+    else if constexpr (BFLAT_RESEED_AVALANCHING)
+      return BFLAT_UNLIKELY(mul != 0) ? detail::mulx(h, mul) : h;
+    else return (void)mul, h;
+  }
   template <typename K>
   BFLAT_FORCEINLINE uint64_t hash_of(const K& k) const {
-    const uint64_t h = static_cast<uint64_t>(hash_(k));
-    if constexpr (kMix) return detail::mulx(h);
-    else return h;
+    return mix(static_cast<uint64_t>(hash_(k)), mul_);
   }
   static BFLAT_FORCEINLINE value_type* elem(slot_type* base, size_t g, unsigned l) noexcept {
     return reinterpret_cast<value_type*>(base + g * N + l);
@@ -987,7 +1047,7 @@ class unordered_flat_map {
     ml_ = lim_;
   }
   void reset_avail() noexcept {
-    avail_ = (!ong_ && ml_ > size_) ? ml_ - size_ : 0;
+    avail_ = (!ong_ && !reseed_ && ml_ > size_) ? ml_ - size_ : 0;
   }
 
   static size_t table_bytes(size_t ng) noexcept { return ng * (N * sizeof(slot_type) + sizeof(group)); }
@@ -1073,10 +1133,12 @@ class unordered_flat_map {
   // Element with key k in the old table of a migration, or nullptr.
   // Migrated groups (before front_) have no occupied slots but keep their
   // overflow byte, so the probe passes through them exactly as before the
-  // migration and stops where it would have stopped.
+  // migration and stops where it would have stopped. After a reseed the old
+  // table has the previous multiplier.
   template <typename K>
   BFLAT_NOINLINE value_type* find_old(const K& k, uint64_t h, size_t* out_g = nullptr,
                                       unsigned* out_l = nullptr) const {
+    if (BFLAT_UNLIKELY(omul_ != mul_)) h = mix(static_cast<uint64_t>(hash_(k)), omul_);
     return find_in(ogroups_, oelems_, ong_, k, h, out_g, out_l);
   }
 
@@ -1093,55 +1155,94 @@ class unordered_flat_map {
     size_t g;
     unsigned l;
     value_type* p = find_in(groups_, elems_, ng_, k, h, &g, &l);
-    if (BFLAT_LIKELY(p)) return iterator(this, p, g * N + l);
+    if (BFLAT_LIKELY(p)) return make_iter(p, g, l);
     if (BFLAT_UNLIKELY(ong_ != 0)) {
       p = find_old(k, h, &g, &l);
-      if (p) return iterator(this, p, ng_ * N + g * N + l);
+      if (p) return make_iter(p, ng_ + g, l);
     }
     return end();
   }
 
   // ---------------------------------------------------------- iteration
-  // First occupied unified index >= i; sets p (nullptr at the end).
-  void advance(size_t i, size_t& out_i, value_type*& out_p) const noexcept {
-    const size_t ncap = ng_ * N;
-    if (i < ncap) {
-      size_t g = i / N;
-      unsigned l = static_cast<unsigned>(i - g * N);
-      Mask m = groups_[g].match_occupied() & group::from_lane(l);
-      for (;;) {
-        if (m) {
-          l = group::lane(m);
-          out_i = g * N + l;
-          out_p = elem(elems_, g, l);
-          return;
-        }
-        if (++g >= ng_) break;
-        m = groups_[g].match_occupied();
+  // g: unified group index ([0, groups) for the current table, then the old
+  // table of a migration).
+  iterator make_iter(value_type* p, size_t g, unsigned l) noexcept {
+    const Mask r = after(Mask(1) << (l << group::kShift));
+    if (g < ng_) return iterator(this, p, groups_ + g, elems_ + g * N, r);
+    return iterator(this, p, ogroups_ + (g - ng_), oelems_ + (g - ng_) * N, r);
+  }
+  // The lanes above the lowest lane of m.
+  static BFLAT_FORCEINLINE Mask after(Mask m) noexcept { return m ^ (Mask(0) - m); }
+  // Lane of an element from its mask of the lanes after it.
+  static BFLAT_FORCEINLINE unsigned lane_of(Mask r) noexcept {
+    return (detail::ctz64(r) - 1) >> group::kShift;
+  }
+  // Next occupied lane of group g (slots b) in the lanes r; false if none.
+  static BFLAT_FORCEINLINE bool next_in_group(const group* g, slot_type* b, Mask& r,
+                                              value_type*& p) noexcept {
+    const Mask m = g->match_occupied() & r;
+    if (BFLAT_UNLIKELY(m == 0)) return false;
+    p = reinterpret_cast<value_type*>(reinterpret_cast<char*>(b) +
+                                      group::byte_offset<sizeof(slot_type)>(m));
+    r = after(m);
+    return true;
+  }
+  // The first lane of the group after g when g is not the last of its table
+  // (whose last lane is the sentinel) and the next group is not empty.
+  static BFLAT_FORCEINLINE bool first_of_next(const group*& g, slot_type*& b, Mask& r,
+                                              value_type*& p) noexcept {
+    if (BFLAT_UNLIKELY(g->m[N - 1] == 1)) return false;
+    const Mask m = g[1].match_occupied();
+    if (BFLAT_UNLIKELY(m == 0)) return false;
+    ++g;
+    b += N;
+    p = reinterpret_cast<value_type*>(reinterpret_cast<char*>(b) +
+                                      group::byte_offset<sizeof(slot_type)>(m));
+    r = after(m);
+    return true;
+  }
+  static BFLAT_FORCEINLINE bool in_table(const group* g, const group* base, size_t n) noexcept {
+    return reinterpret_cast<uintptr_t>(g) - reinterpret_cast<uintptr_t>(base) < n * sizeof(group);
+  }
+  // The first element of the groups after g (g itself is done); sets the
+  // iterator fields (p nullptr at the end).
+  BFLAT_NOINLINE void next_group(const group*& g, slot_type*& b, Mask& r,
+                                 value_type*& p) const noexcept {
+    const size_t i = in_table(g, groups_, ng_) ? static_cast<size_t>(g - groups_)
+                                               : ng_ + static_cast<size_t>(g - ogroups_);
+    first_from(i + 1, g, b, r, p);
+  }
+  // The first element at unified group index i or later.
+  void first_from(size_t i, const group*& g, slot_type*& b, Mask& r,
+                  value_type*& p) const noexcept {
+    for (; i < ng_; ++i) {
+      const Mask m = groups_[i].match_occupied();
+      if (m) {
+        g = groups_ + i;
+        b = elems_ + i * N;
+        r = after(m);
+        p = elem(elems_, i, group::lane(m));
+        return;
       }
-      i = ncap;
     }
     if (ong_) {
-      size_t j = i - ncap;
-      size_t g = j / N;
-      unsigned l = static_cast<unsigned>(j - g * N);
-      if (g < front_) { g = front_; l = 0; }
-      if (g < ong_) {
-        Mask m = ogroups_[g].match_occupied() & group::from_lane(l);
-        for (;;) {
-          if (m) {
-            l = group::lane(m);
-            out_i = ncap + g * N + l;
-            out_p = elem(oelems_, g, l);
-            return;
-          }
-          if (++g >= ong_) break;
-          m = ogroups_[g].match_occupied();
+      size_t j = i - ng_;
+      if (j < front_) j = front_;
+      for (; j < ong_; ++j) {
+        const Mask m = ogroups_[j].match_occupied();
+        if (m) {
+          g = ogroups_ + j;
+          b = oelems_ + j * N;
+          r = after(m);
+          p = elem(oelems_, j, group::lane(m));
+          return;
         }
       }
     }
-    out_i = 0;
-    out_p = nullptr;
+    g = nullptr;
+    b = nullptr;
+    r = 0;
+    p = nullptr;
   }
 
   // ------------------------------------------------------------- insert
@@ -1176,7 +1277,7 @@ class unordered_flat_map {
     size_t g;
     unsigned l;
     value_type* e = find_in(groups_, elems_, ng_, k, h, &g, &l);
-    if (e) return {iterator(this, e, g * N + l), false};
+    if (e) return {make_iter(e, g, l), false};
     if (BFLAT_LIKELY(avail_ != 0)) return insert_absent_new(h, make);
     return insert_slow(k, h, make);
 
@@ -1193,7 +1294,7 @@ class unordered_flat_map {
     groups_[g].set(l, detail::reduced_hash(h));
     ++size_;
     if (avail_) --avail_;
-    return {iterator(this, e, g * N + l), true};
+    return {make_iter(e, g, l), true};
   }
 
   // First available slot of h in the current table; marks overflow on the
@@ -1213,6 +1314,7 @@ class unordered_flat_map {
         assert(false && "bflat: no available slot");
         pb = detail::prober(0);
       }
+      if (BFLAT_UNLIKELY(pb.step == kReseedSteps)) note_pileup();
     }
   }
 
@@ -1223,6 +1325,7 @@ class unordered_flat_map {
   // migrated group (it wrapped around), the key goes to the new table.
   // Returns false if the key must go to the new table.
   bool place_old(uint64_t h, size_t& g, unsigned& l) noexcept {
+    if (omul_ != mul_) return false;  // a reseed: h is not the old table's
     detail::prober pb(detail::home_group(h, ong_));
     if (pb.pos < front_) return false;
     for (;;) {
@@ -1236,6 +1339,7 @@ class unordered_flat_map {
       }
       pg->mark_overflow(h);
       if (!pb.next(ong_)) return false;
+      if (BFLAT_UNLIKELY(pb.step == kReseedSteps)) note_pileup();
     }
   }
 
@@ -1249,26 +1353,30 @@ class unordered_flat_map {
       size_t g;
       unsigned l;
       if (value_type* e = find_in(groups_, elems_, ng_, k, h, &g, &l))
-        return {iterator(this, e, g * N + l), false};
+        return {make_iter(e, g, l), false};
+      const uint64_t mul = mul_;
       make_room();
+      if (BFLAT_UNLIKELY(mul_ != mul)) h = hash_of(k);  // reseeded
     }
     // Locate: current table, then the old table.
     {
       size_t g;
       unsigned l;
       if (value_type* e = find_in(groups_, elems_, ng_, k, h, &g, &l))
-        return {iterator(this, e, g * N + l), false};
+        return {make_iter(e, g, l), false};
       if (ong_) {
         if (value_type* e = find_old(k, h, &g, &l))
-          return {iterator(this, e, ng_ * N + g * N + l), false};
+          return {make_iter(e, ng_ + g, l), false};
       }
     }
     if (BFLAT_UNLIKELY(size_ >= ml_ || size_ >= lim_)) {
       // The current table is at its limit before the migration ended (rare:
       // many erases from overflowed groups during the migration): finish,
       // then rehash using Boost's size/61 request.
+      const uint64_t mul = mul_;
       finish_migration();
       make_room();
+      if (BFLAT_UNLIKELY(mul_ != mul)) h = hash_of(k);
     }
     if (ong_) {
       size_t g;
@@ -1278,7 +1386,7 @@ class unordered_flat_map {
         make(e);
         ogroups_[g].set(l, detail::reduced_hash(h));
         ++size_;
-        return {iterator(this, e, ng_ * N + g * N + l), true};
+        return {make_iter(e, ng_ + g, l), true};
       }
     }
     size_t g;
@@ -1288,7 +1396,7 @@ class unordered_flat_map {
     groups_[g].set(l, detail::reduced_hash(h));
     ++size_;
     reset_avail();
-    return {iterator(this, e, g * N + l), true};
+    return {make_iter(e, g, l), true};
   }
 
   // ------------------------------------------------------------- growth
@@ -1306,19 +1414,41 @@ class unordered_flat_map {
     if (ng_ > kMaxGroups - extra) throw std::length_error("bflat: too many elements");
     return std::max(need, ng_ + extra);
   }
-  void make_room() { grow(); }
+  void make_room() { grow(reseed_ ? detail::reseed_multiplier(mul_) : mul_); }
 
-  void grow() {
+  // Growth, or a rebuild with a new multiplier (at the same capacity when
+  // the elements fit).
+  void grow(uint64_t mul) {
+    reseed_ = false;
+    if (mul != mul_) reseed_size_ = size_;
     const size_t g = grown_groups();
     constexpr unsigned long long at_once_below = BFLAT_GROW_AT_ONCE_BELOW;
     const bool at_once = table_bytes(ng_) < at_once_below;
-    relocate_to(g, at_once, at_once);
+    relocate_to(g, at_once, at_once, mul);
+  }
+
+  // Pile-up: an insert probed kReseedSteps groups. Iteration visits a table
+  // in home order and the home mapping is monotonic, so the keys of another
+  // table with the same multiplier (iterating it, or a copy of its order)
+  // arrive sorted by home and fill the start of a smaller table: every
+  // insert then probes the full groups before it, and the loop takes
+  // quadratic time. Random keys probe at most about 20 groups at the load
+  // limit (10M keys). The next insert that reaches the slow path rebuilds
+  // with another multiplier; at most once per doubling of the size, so a
+  // hash that no multiplier helps costs O(1) rebuilds per element.
+  void note_pileup() noexcept {
+    if (kReseedSteps != 0 && size_ >= 2 * reseed_size_) {
+      reseed_ = true;
+      avail_ = 0;
+    }
   }
 
   // Start moving all elements to a new table of g groups. at_once: finish in
   // this call. huge: MADV_HUGEPAGE on the whole new element array (else only
-  // near the migration front).
-  void relocate_to(size_t g, bool at_once, bool huge) {
+  // near the migration front). mul: the new table's multiplier (the old
+  // table keeps omul_).
+  void relocate_to(size_t g, bool at_once, bool huge) { relocate_to(g, at_once, huge, mul_); }
+  void relocate_to(size_t g, bool at_once, bool huge, uint64_t mul) {
     assert(!ong_);
     group* ngr = alloc_groups(g);
     slot_type* nel;
@@ -1332,6 +1462,7 @@ class unordered_flat_map {
       groups_ = ngr;
       elems_ = nel;
       ng_ = g;
+      mul_ = omul_ = mul;
       set_limits();
       reset_avail();
       return;
@@ -1339,6 +1470,8 @@ class unordered_flat_map {
     ogroups_ = groups_;
     oelems_ = elems_;
     ong_ = ng_;
+    omul_ = mul_;
+    mul_ = mul;
     front_ = 0;
     old_released_ = 0;
     huge_hint_ = 0;
@@ -1380,7 +1513,7 @@ class unordered_flat_map {
           throw;
         }
         destroy(s);
-        groups_[g].set(nl, og->m[l]);
+        groups_[g].set(nl, detail::reduced_hash(h));
         og->reset(l);
         m &= m - 1;
       }
@@ -1429,6 +1562,7 @@ class unordered_flat_map {
     ogroups_ = nullptr;
     oelems_ = nullptr;
     ong_ = 0;
+    omul_ = mul_;
     front_ = 0;
     old_released_ = 0;
     huge_hint_ = 0;
@@ -1450,10 +1584,9 @@ class unordered_flat_map {
     }
     return 0;
   }
-  void erase_at(size_t i) noexcept {
-    const size_t ncap = ng_ * N;
-    if (i < ncap) erase_new(i / N, static_cast<unsigned>(i % N));
-    else erase_old((i - ncap) / N, static_cast<unsigned>((i - ncap) % N));
+  void erase_at(const group* g, Mask r) noexcept {
+    if (in_table(g, groups_, ng_)) erase_new(static_cast<size_t>(g - groups_), lane_of(r));
+    else erase_old(static_cast<size_t>(g - ogroups_), lane_of(r));
   }
   // boost's recover_slot: if the slot may have caused overflow, lower the
   // max load (anti-drift); the slot becomes available.
@@ -1503,6 +1636,9 @@ class unordered_flat_map {
     groups_ = empty_groups();
     elems_ = nullptr;
     ng_ = 0;
+    mul_ = omul_ = kInitialMul;
+    reseed_size_ = 0;
+    reseed_ = false;
     size_ = 0;
     ml_ = 0;
     lim_ = 0;
@@ -1521,6 +1657,10 @@ class unordered_flat_map {
     groups_ = o.groups_;
     elems_ = o.elems_;
     ng_ = o.ng_;
+    mul_ = o.mul_;
+    omul_ = o.omul_;
+    reseed_size_ = o.reseed_size_;
+    reseed_ = o.reseed_;
     size_ = o.size_;
     ml_ = o.ml_;
     lim_ = o.lim_;
@@ -1538,6 +1678,10 @@ class unordered_flat_map {
     swap(groups_, o.groups_);
     swap(elems_, o.elems_);
     swap(ng_, o.ng_);
+    swap(mul_, o.mul_);
+    swap(omul_, o.omul_);
+    swap(reseed_size_, o.reseed_size_);
+    swap(reseed_, o.reseed_);
     swap(size_, o.size_);
     swap(ml_, o.ml_);
     swap(lim_, o.lim_);
@@ -1596,6 +1740,9 @@ class unordered_flat_map {
       groups_ = ngr;
       elems_ = nel;
       ng_ = o.ng_;
+      mul_ = omul_ = o.mul_;
+      reseed_size_ = o.reseed_size_;
+      reseed_ = o.reseed_;
       size_ = o.size_;
       ml_ = o.ml_;
       lim_ = o.lim_;
@@ -1613,11 +1760,12 @@ class unordered_flat_map {
   }
 
   // ------------------------------------------------------------- members
-  // Hot members first: find reads groups_, elems_, ng_ and (on a miss with
-  // the overflow bit set) ong_.
+  // Hot members first: find reads groups_, elems_, ng_, mul_ and (on a miss
+  // with the overflow bit set) ong_.
   group* groups_ = empty_groups();
   slot_type* elems_ = nullptr;
   size_t ng_ = 0;       // groups in the current table
+  uint64_t mul_ = kInitialMul;  // hash multiplier of the current table
   size_t ong_ = 0;      // groups in the old table (!= 0 while migrating)
   size_t avail_ = 0;    // inserts left before the slow path (0 while migrating)
   size_t size_ = 0;     // elements in both tables
@@ -1628,6 +1776,9 @@ class unordered_flat_map {
   size_t front_ = 0;          // first old group not migrated
   size_t old_released_ = 0;   // bytes of old elements given back
   size_t huge_hint_ = 0;      // bytes of new elements with MADV_HUGEPAGE
+  uint64_t omul_ = kInitialMul;  // multiplier of the old table
+  size_t reseed_size_ = 0;       // size_ at the last reseed
+  bool reseed_ = false;          // pile-up seen: rebuild at the next slow insert
   Hash hash_;
   KeyEqual eq_;
   Allocator al_;

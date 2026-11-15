@@ -44,6 +44,40 @@ an ever-larger table after each fixed increment can make total work quadratic.
 Every multiplicative policy remains geometric in the number of resizes;
 table memory is proportional to live entry count, not exponential in it.
 
+## Iteration
+
+An iterator holds the map, its element, its group's metadata and first slot,
+and the mask of the lanes after its own (five words). An increment reads the
+group's metadata again, so an erased element is never visited, and takes the
+lowest occupied lane of the mask; within a group, and into a following
+non-empty group of the same table, it needs neither the map nor a division
+by 15. Empty groups, the end of a table and the step into the old table of a
+migration go through the map. The previous iterator kept a unified slot
+index and recomputed group and lane on every increment (a multiply for the
+division, a variable shift and a bit scan in one dependency chain).
+
+## Reseed
+
+Iteration visits a table in home order and the home mapping is monotonic,
+so inserting the iteration order of a table into a smaller table with the
+same hash multiplier sends the keys sorted by home: they fill the start of
+the table, every insert probes the full groups before it, and the loop takes
+quadratic time (boost has the same behaviour). An insert that probes
+`BFLAT_RESEED_STEPS` (64) groups past its home group marks a pile-up; random
+keys probe at most about 20 at the load limit of a 10M table. The next
+insert that reaches the slow path rebuilds the table, at the same capacity
+when the elements fit, with the next of 16 checked multipliers. A table
+with an avalanching hash (used unmixed) keeps the pile-up unless
+`BFLAT_RESEED_AVALANCHING=1`: then it is mixed with mulx after a reseed,
+and the check of the multiplier costs about 3% in an insert loop (10M keys). A table rebuilds at most once per
+doubling of its size, so a hash that no multiplier helps costs O(1)
+rebuilds per element. Tables start with boost's multiplier, so capacities and iteration order are unchanged unless a
+pile-up is seen. A rebuild follows the growth rules (at once below
+`BFLAT_GROW_AT_ONCE_BELOW`, else incremental); during an incremental one the
+old table keeps its multiplier (a lookup there hashes the key again), new
+keys go to the new table, and the new table is written in the new hash
+order rather than near the migration front.
+
 ## Exceptions and allocators
 
 A migration step moves each element out of the old table as soon as it is

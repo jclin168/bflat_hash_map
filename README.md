@@ -44,12 +44,27 @@ an ever-larger table after each fixed increment can make total work quadratic.
 Every multiplicative policy remains geometric in the number of resizes;
 table memory is proportional to live entry count, not exponential in it.
 
+## Exceptions and allocators
+
+A migration step moves each element out of the old table as soon as it is
+moved into the new one, so a throwing hash or move constructor leaves every
+element in exactly one table; the element whose move threw is dropped (its
+key may already be moved from) and the exception propagates from the insert.
+`find`, `contains` and `count` are not `noexcept`: they call the hash and the
+predicate. Copy assignment with a propagating allocator frees the old
+storage with the old allocator. `insert(first, last)` reserves only when the
+range does not fit the current load limit; it never shrinks the table.
+`max_size()` is the load limit of the largest table, so `reserve(max_size())`
+is not a length error.
+
 ## Tests and history
 
 Run `BOOST_INCLUDE_DIR=/path/to/boost ./tests/run_tests.sh`.
 Tests include low thresholds to exercise all four tiers, differential tests
 under growth and weak hashes, arbitrary-group probe coverage, scalar/SSE2,
-and ASan/UBSan. `test_tiered_policy.cpp` uses Boost as a functional reference;
+and ASan/UBSan (with and without mmap). `test_review.cpp` covers allocator
+propagation, throwing hash / copy / move and allocation failure under
+migration, size limits, range insert and iterator edge cases. `test_tiered_policy.cpp` uses Boost as a functional reference;
 it does not assert equal capacities now that capacity policies differ.
 
 The previous power-of-two version is documented in docs/boost-policy.md;

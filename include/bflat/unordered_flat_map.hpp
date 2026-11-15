@@ -341,12 +341,6 @@ struct alignas(16) group15 {
   BFLAT_FORCEINLINE void set(unsigned pos, uint8_t rh) noexcept { m[pos] = rh; }
   BFLAT_FORCEINLINE void reset(unsigned pos) noexcept { m[pos] = 0; }
   BFLAT_FORCEINLINE bool is_occupied(unsigned pos) const noexcept { return m[pos] > 1; }
-  // Clear slots 0..14, keep the overflow byte.
-  BFLAT_FORCEINLINE void clear_slots_keep_overflow() noexcept {
-    const unsigned char o = m[N];
-    std::memset(m, 0, 16);
-    m[N] = o;
-  }
 };
 static_assert(sizeof(group15) == 16, "group15 must be 16 bytes");
 
@@ -618,12 +612,17 @@ class unordered_flat_map {
 
   unordered_flat_map& operator=(const unordered_flat_map& o) {
     if (this != &o) {
-      unordered_flat_map t(o, alloc_traits::propagate_on_container_copy_assignment::value
-                                  ? o.al_ : al_);
+      constexpr bool propagate = alloc_traits::propagate_on_container_copy_assignment::value;
+      unordered_flat_map t(o, propagate ? o.al_ : al_);
+      // The old storage is freed here, with the old allocator (t would free
+      // it with the propagated one).
+      destroy_all(true);
+      reset_members();
+      if (propagate) al_ = o.al_;
+      using std::swap;
+      swap(hash_, t.hash_);
+      swap(eq_, t.eq_);
       swap_storage(t);
-      hash_ = o.hash_;
-      eq_ = o.eq_;
-      if (alloc_traits::propagate_on_container_copy_assignment::value) al_ = o.al_;
     }
     return *this;
   }
@@ -673,7 +672,7 @@ class unordered_flat_map {
   // ------------------------------------------------------------ capacity
   bool empty() const noexcept { return size_ == 0; }
   size_type size() const noexcept { return size_; }
-  size_type max_size() const noexcept { return kMaxGroups * N * 7 / 8; }
+  size_type max_size() const noexcept { return max_entries(); }
 
   // --------------------------------------------------------- modifiers
   template <typename... Args>
@@ -718,7 +717,7 @@ class unordered_flat_map {
     using cat = typename std::iterator_traits<InputIt>::iterator_category;
     if constexpr (std::is_base_of<std::forward_iterator_tag, cat>::value) {
       const size_t n = static_cast<size_t>(std::distance(first, last));
-      if (n > size_) reserve(n);  // as sflat: max(size(), n), not size() + n
+      if (n > max_load()) reserve(n);  // as sflat: max(size(), n), not size() + n; never shrinks
     }
     for (; first != last; ++first) emplace(*first);
   }
@@ -823,8 +822,8 @@ class unordered_flat_map {
   }
 
   // ------------------------------------------------------------- lookup
-  BFLAT_FORCEINLINE iterator find(const key_type& k) noexcept { return find_iter(k); }
-  BFLAT_FORCEINLINE const_iterator find(const key_type& k) const noexcept {
+  BFLAT_FORCEINLINE iterator find(const key_type& k) { return find_iter(k); }
+  BFLAT_FORCEINLINE const_iterator find(const key_type& k) const {
     return const_cast<unordered_flat_map*>(this)->find_iter(k);
   }
   template <typename K, enable_transparent<K> = 0>
@@ -832,10 +831,10 @@ class unordered_flat_map {
   template <typename K, enable_transparent<K> = 0>
   const_iterator find(const K& k) const { return const_cast<unordered_flat_map*>(this)->find_iter(k); }
 
-  BFLAT_FORCEINLINE bool contains(const key_type& k) const noexcept { return find_ptr(k) != nullptr; }
+  BFLAT_FORCEINLINE bool contains(const key_type& k) const { return find_ptr(k) != nullptr; }
   template <typename K, enable_transparent<K> = 0>
   bool contains(const K& k) const { return find_ptr(k) != nullptr; }
-  size_type count(const key_type& k) const noexcept { return contains(k) ? 1 : 0; }
+  size_type count(const key_type& k) const { return contains(k) ? 1 : 0; }
   template <typename K, enable_transparent<K> = 0>
   size_type count(const K& k) const { return contains(k) ? 1 : 0; }
   std::pair<iterator, iterator> equal_range(const key_type& k) {
@@ -963,11 +962,14 @@ class unordered_flat_map {
   }
   void destroy(value_type* p) noexcept { alloc_traits::destroy(al_, p); }
 
+  // Entries of the largest table (its load limit).
+  static constexpr size_t max_entries() noexcept {
+    const size_t max_slots = kMaxGroups * N - 1;
+    return (max_slots / 8) * 7 + (max_slots % 8) * 7 / 8;
+  }
   // Slots for n elements at the max load: ceil(n / 0.875).
   static size_t slots_for(size_t n) {
-    const size_t max_slots = kMaxGroups * N - 1;
-    const size_t max_entries = (max_slots / 8) * 7 + (max_slots % 8) * 7 / 8;
-    if (n > max_entries) throw std::length_error("bflat: too many elements");
+    if (n > max_entries()) throw std::length_error("bflat: too many elements");
     return (n / 7) * 8 + ((n % 7) * 8 + 6) / 7;
   }
   static size_t groups_for_slots(size_t slots) {
@@ -1308,7 +1310,8 @@ class unordered_flat_map {
 
   void grow() {
     const size_t g = grown_groups();
-    const bool at_once = table_bytes(ng_) < BFLAT_GROW_AT_ONCE_BELOW;
+    constexpr unsigned long long at_once_below = BFLAT_GROW_AT_ONCE_BELOW;
+    const bool at_once = table_bytes(ng_) < at_once_below;
     relocate_to(g, at_once, at_once);
   }
 
@@ -1350,7 +1353,11 @@ class unordered_flat_map {
 
   // Move up to `batch` old groups (from the front, in index order) to the
   // current table. Elements are moved, not copied (move_if_noexcept is not
-  // applied: a throwing move here would leave the element destroyed).
+  // applied). Each element leaves the old table as soon as it is moved, so
+  // an exception (hash, or a throwing move) leaves every element in exactly
+  // one table; an element whose move throws is dropped (its key may already
+  // be moved from), the exception propagates and the migration resumes with
+  // the next insert.
   void migrate_step(size_t batch) {
     if (!ong_) return;
     const size_t stop = ong_ - front_ > batch ? front_ + batch : ong_;
@@ -1364,12 +1371,19 @@ class unordered_flat_map {
         size_t g;
         unsigned nl;
         value_type* d = place_new(h, g, nl);
-        construct(d, std::move(const_cast<key_type&>(s->first)), std::move(s->second));
+        try {
+          construct(d, std::move(const_cast<key_type&>(s->first)), std::move(s->second));
+        } catch (...) {
+          destroy(s);
+          og->reset(l);
+          --size_;
+          throw;
+        }
         destroy(s);
         groups_[g].set(nl, og->m[l]);
+        og->reset(l);
         m &= m - 1;
       }
-      og->clear_slots_keep_overflow();
     }
     if (front_ >= ong_) {
       free_old();

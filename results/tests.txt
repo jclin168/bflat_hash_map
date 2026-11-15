@@ -1,503 +1,207 @@
-[api] 
-  growth: 20 capacity changes up to 7864320 slots
+[avalanching] PASS
+[avalanching_boost] PASS
+  growth: 19 capacity changes up to 7864319 slots
 test_api: PASS (0 failures)
-[api] rc=0
-[api_tiers] 
-  growth: 30 capacity changes up to 8147100 slots
+[api] PASS
+  growth: 57 capacity changes up to 7338974 slots
 test_api: PASS (0 failures)
-[api_tiers] rc=0
-[diff] 101 1
+[api_tiers] PASS
+  growth: 19 capacity changes up to 7864319 slots
+test_api: PASS (0 failures)
+[api_incremental] PASS
 bflat test_diff seed=101 scale=1.00 grow_at_once_below=2097152 migrate_groups=16
   u64 small keyspace           ops=2000000 final_size=193 migrating_ops=0
   u64 large keyspace           ops=3000000 final_size=12873 migrating_ops=0
-  string                       ops=1000000 final_size=21757 migrating_ops=0
-  u64 bad hash (64 values)     ops=300000 final_size=2186 migrating_ops=0
-  string bad hash              ops=100000 final_size=1249 migrating_ops=0
-  u64 unmixed 13-value hash    ops=100000 final_size=986 migrating_ops=0
-  u64 growth 0..20M            n=20000000 cap=31457280 checks_during_migration=3
-  string growth 0..2M          n=2000000 cap=3932160 checks_during_migration=1
+  string                       ops=1000000 final_size=21758 migrating_ops=0
+  u64 bad hash (64 values)     ops=300000 final_size=2191 migrating_ops=0
+  string bad hash              ops=100000 final_size=1248 migrating_ops=0
+  u64 unmixed 13-value hash    ops=100000 final_size=988 migrating_ops=0
+  u64 growth 0..20M            n=20000000 cap=23592959 checks_during_migration=3
+  string growth 0..2M          n=2000000 cap=3932159 checks_during_migration=1
 PASS (0 failures)
-[diff] rc=0
-In file included from tests/test_diff.cpp:6:
-include/bflat/unordered_flat_map.hpp: In instantiation of ‘void bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::grow() [with Key = long unsigned int; T = long unsigned int; Hash = std::hash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >]’:
-include/bflat/unordered_flat_map.hpp:1372:5:   required from ‘void bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::make_room() [with Key = long unsigned int; T = long unsigned int; Hash = std::hash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >]’
- 1372 |     grow();
-      |     ^~~~
-include/bflat/unordered_flat_map.hpp:1301:7:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert_slow(const K&, uint64_t, F&) [with K = long unsigned int; F = bflat::unordered_flat_map<long unsigned int, long unsigned int, std::hash<long unsigned int>, std::equal_to<long unsigned int>, std::allocator<std::pair<const long unsigned int, long unsigned int> > >::insert(init_type&&)::<lambda(bflat::unordered_flat_map<long unsigned int, long unsigned int, std::hash<long unsigned int>, std::equal_to<long unsigned int>, std::allocator<std::pair<const long unsigned int, long unsigned int> > >::value_type*)>; Key = long unsigned int; T = long unsigned int; Hash = std::hash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >; uint64_t = long unsigned int]’
- 1301 |       make_room();
-      |       ^~~~~~~~~
-include/bflat/unordered_flat_map.hpp:1221:23:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert_impl(const K&, F&&) [with K = long unsigned int; F = bflat::unordered_flat_map<long unsigned int, long unsigned int, std::hash<long unsigned int>, std::equal_to<long unsigned int>, std::allocator<std::pair<const long unsigned int, long unsigned int> > >::insert(init_type&&)::<lambda(bflat::unordered_flat_map<long unsigned int, long unsigned int, std::hash<long unsigned int>, std::equal_to<long unsigned int>, std::allocator<std::pair<const long unsigned int, long unsigned int> > >::value_type*)>; Key = long unsigned int; T = long unsigned int; Hash = std::hash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >]’
- 1221 |     return insert_slow(k, h, make);
-      |            ~~~~~~~~~~~^~~~~~~~~~~~
-include/bflat/unordered_flat_map.hpp:715:23:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert(init_type&&) [with Key = long unsigned int; T = long unsigned int; Hash = std::hash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >; init_type = std::pair<long unsigned int, long unsigned int>]’
-  715 |     return insert_impl(v.first, [&](value_type* p) {
-      |            ~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  716 |       construct(p, std::move(v.first), std::move(v.second));
-      |       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  717 |     });
-      |     ~~                 
-tests/test_diff.cpp:87:24:   required from ‘void run_random(uint64_t, size_t, uint64_t, const char*) [with K = long unsigned int; H = std::hash<long unsigned int>; uint64_t = long unsigned int; size_t = long unsigned int]’
-   87 |       auto a = m.insert(std::make_pair(k, v));
-      |                ~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~
-tests/test_diff.cpp:234:44:   required from here
-  234 |   run_random<uint64_t, std::hash<uint64_t>>(seed, S(2000000), 300, "u64 small keyspace");
-      |   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-include/bflat/unordered_flat_map.hpp:1403:43: warning: comparison of unsigned expression in ‘< 0’ is always false [-Wtype-limits]
- 1403 |     const bool at_once = table_bytes(ng_) < BFLAT_GROW_AT_ONCE_BELOW;
-include/bflat/unordered_flat_map.hpp: In instantiation of ‘void bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::grow() [with Key = std::__cxx11::basic_string<char>; T = long unsigned int; Hash = std::hash<std::__cxx11::basic_string<char> >; KeyEqual = std::equal_to<std::__cxx11::basic_string<char> >; Allocator = std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> >]’:
-include/bflat/unordered_flat_map.hpp:1372:5:   required from ‘void bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::make_room() [with Key = std::__cxx11::basic_string<char>; T = long unsigned int; Hash = std::hash<std::__cxx11::basic_string<char> >; KeyEqual = std::equal_to<std::__cxx11::basic_string<char> >; Allocator = std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> >]’
- 1372 |     grow();
-      |     ^~~~
-include/bflat/unordered_flat_map.hpp:1301:7:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert_slow(const K&, uint64_t, F&) [with K = std::__cxx11::basic_string<char>; F = bflat::unordered_flat_map<std::__cxx11::basic_string<char>, long unsigned int, std::hash<std::__cxx11::basic_string<char> >, std::equal_to<std::__cxx11::basic_string<char> >, std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> > >::insert(init_type&&)::<lambda(bflat::unordered_flat_map<std::__cxx11::basic_string<char>, long unsigned int, std::hash<std::__cxx11::basic_string<char> >, std::equal_to<std::__cxx11::basic_string<char> >, std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> > >::value_type*)>; Key = std::__cxx11::basic_string<char>; T = long unsigned int; Hash = std::hash<std::__cxx11::basic_string<char> >; KeyEqual = std::equal_to<std::__cxx11::basic_string<char> >; Allocator = std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> >; uint64_t = long unsigned int]’
- 1301 |       make_room();
-      |       ^~~~~~~~~
-include/bflat/unordered_flat_map.hpp:1221:23:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert_impl(const K&, F&&) [with K = std::__cxx11::basic_string<char>; F = bflat::unordered_flat_map<std::__cxx11::basic_string<char>, long unsigned int, std::hash<std::__cxx11::basic_string<char> >, std::equal_to<std::__cxx11::basic_string<char> >, std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> > >::insert(init_type&&)::<lambda(bflat::unordered_flat_map<std::__cxx11::basic_string<char>, long unsigned int, std::hash<std::__cxx11::basic_string<char> >, std::equal_to<std::__cxx11::basic_string<char> >, std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> > >::value_type*)>; Key = std::__cxx11::basic_string<char>; T = long unsigned int; Hash = std::hash<std::__cxx11::basic_string<char> >; KeyEqual = std::equal_to<std::__cxx11::basic_string<char> >; Allocator = std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> >]’
- 1221 |     return insert_slow(k, h, make);
-      |            ~~~~~~~~~~~^~~~~~~~~~~~
-include/bflat/unordered_flat_map.hpp:715:23:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert(init_type&&) [with Key = std::__cxx11::basic_string<char>; T = long unsigned int; Hash = std::hash<std::__cxx11::basic_string<char> >; KeyEqual = std::equal_to<std::__cxx11::basic_string<char> >; Allocator = std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> >; init_type = std::pair<std::__cxx11::basic_string<char>, long unsigned int>]’
-  715 |     return insert_impl(v.first, [&](value_type* p) {
-      |            ~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  716 |       construct(p, std::move(v.first), std::move(v.second));
-      |       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  717 |     });
-      |     ~~                 
-tests/test_diff.cpp:87:24:   required from ‘void run_random(uint64_t, size_t, uint64_t, const char*) [with K = std::__cxx11::basic_string<char>; H = std::hash<std::__cxx11::basic_string<char> >; uint64_t = long unsigned int; size_t = long unsigned int]’
-   87 |       auto a = m.insert(std::make_pair(k, v));
-      |                ~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~
-tests/test_diff.cpp:236:50:   required from here
-  236 |   run_random<std::string, std::hash<std::string>>(seed + 2, S(1000000), 50000, "string");
-      |   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-include/bflat/unordered_flat_map.hpp:1403:43: warning: comparison of unsigned expression in ‘< 0’ is always false [-Wtype-limits]
- 1403 |     const bool at_once = table_bytes(ng_) < BFLAT_GROW_AT_ONCE_BELOW;
-include/bflat/unordered_flat_map.hpp: In instantiation of ‘void bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::grow() [with Key = long unsigned int; T = long unsigned int; Hash = BadHash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >]’:
-include/bflat/unordered_flat_map.hpp:1372:5:   required from ‘void bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::make_room() [with Key = long unsigned int; T = long unsigned int; Hash = BadHash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >]’
- 1372 |     grow();
-      |     ^~~~
-include/bflat/unordered_flat_map.hpp:1301:7:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert_slow(const K&, uint64_t, F&) [with K = long unsigned int; F = bflat::unordered_flat_map<long unsigned int, long unsigned int, BadHash<long unsigned int>, std::equal_to<long unsigned int>, std::allocator<std::pair<const long unsigned int, long unsigned int> > >::insert(init_type&&)::<lambda(bflat::unordered_flat_map<long unsigned int, long unsigned int, BadHash<long unsigned int>, std::equal_to<long unsigned int>, std::allocator<std::pair<const long unsigned int, long unsigned int> > >::value_type*)>; Key = long unsigned int; T = long unsigned int; Hash = BadHash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >; uint64_t = long unsigned int]’
- 1301 |       make_room();
-      |       ^~~~~~~~~
-include/bflat/unordered_flat_map.hpp:1221:23:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert_impl(const K&, F&&) [with K = long unsigned int; F = bflat::unordered_flat_map<long unsigned int, long unsigned int, BadHash<long unsigned int>, std::equal_to<long unsigned int>, std::allocator<std::pair<const long unsigned int, long unsigned int> > >::insert(init_type&&)::<lambda(bflat::unordered_flat_map<long unsigned int, long unsigned int, BadHash<long unsigned int>, std::equal_to<long unsigned int>, std::allocator<std::pair<const long unsigned int, long unsigned int> > >::value_type*)>; Key = long unsigned int; T = long unsigned int; Hash = BadHash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >]’
- 1221 |     return insert_slow(k, h, make);
-      |            ~~~~~~~~~~~^~~~~~~~~~~~
-include/bflat/unordered_flat_map.hpp:715:23:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert(init_type&&) [with Key = long unsigned int; T = long unsigned int; Hash = BadHash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >; init_type = std::pair<long unsigned int, long unsigned int>]’
-  715 |     return insert_impl(v.first, [&](value_type* p) {
-      |            ~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  716 |       construct(p, std::move(v.first), std::move(v.second));
-      |       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  717 |     });
-      |     ~~                 
-tests/test_diff.cpp:87:24:   required from ‘void run_random(uint64_t, size_t, uint64_t, const char*) [with K = long unsigned int; H = BadHash<long unsigned int>; uint64_t = long unsigned int; size_t = long unsigned int]’
-   87 |       auto a = m.insert(std::make_pair(k, v));
-      |                ~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~
-tests/test_diff.cpp:237:42:   required from here
-  237 |   run_random<uint64_t, BadHash<uint64_t>>(seed + 3, S(300000), 4000, "u64 bad hash (64 values)");
-      |   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-include/bflat/unordered_flat_map.hpp:1403:43: warning: comparison of unsigned expression in ‘< 0’ is always false [-Wtype-limits]
- 1403 |     const bool at_once = table_bytes(ng_) < BFLAT_GROW_AT_ONCE_BELOW;
-include/bflat/unordered_flat_map.hpp: In instantiation of ‘void bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::grow() [with Key = std::__cxx11::basic_string<char>; T = long unsigned int; Hash = BadHash<std::__cxx11::basic_string<char> >; KeyEqual = std::equal_to<std::__cxx11::basic_string<char> >; Allocator = std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> >]’:
-include/bflat/unordered_flat_map.hpp:1372:5:   required from ‘void bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::make_room() [with Key = std::__cxx11::basic_string<char>; T = long unsigned int; Hash = BadHash<std::__cxx11::basic_string<char> >; KeyEqual = std::equal_to<std::__cxx11::basic_string<char> >; Allocator = std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> >]’
- 1372 |     grow();
-      |     ^~~~
-include/bflat/unordered_flat_map.hpp:1301:7:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert_slow(const K&, uint64_t, F&) [with K = std::__cxx11::basic_string<char>; F = bflat::unordered_flat_map<std::__cxx11::basic_string<char>, long unsigned int, BadHash<std::__cxx11::basic_string<char> >, std::equal_to<std::__cxx11::basic_string<char> >, std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> > >::insert(init_type&&)::<lambda(bflat::unordered_flat_map<std::__cxx11::basic_string<char>, long unsigned int, BadHash<std::__cxx11::basic_string<char> >, std::equal_to<std::__cxx11::basic_string<char> >, std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> > >::value_type*)>; Key = std::__cxx11::basic_string<char>; T = long unsigned int; Hash = BadHash<std::__cxx11::basic_string<char> >; KeyEqual = std::equal_to<std::__cxx11::basic_string<char> >; Allocator = std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> >; uint64_t = long unsigned int]’
- 1301 |       make_room();
-      |       ^~~~~~~~~
-include/bflat/unordered_flat_map.hpp:1221:23:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert_impl(const K&, F&&) [with K = std::__cxx11::basic_string<char>; F = bflat::unordered_flat_map<std::__cxx11::basic_string<char>, long unsigned int, BadHash<std::__cxx11::basic_string<char> >, std::equal_to<std::__cxx11::basic_string<char> >, std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> > >::insert(init_type&&)::<lambda(bflat::unordered_flat_map<std::__cxx11::basic_string<char>, long unsigned int, BadHash<std::__cxx11::basic_string<char> >, std::equal_to<std::__cxx11::basic_string<char> >, std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> > >::value_type*)>; Key = std::__cxx11::basic_string<char>; T = long unsigned int; Hash = BadHash<std::__cxx11::basic_string<char> >; KeyEqual = std::equal_to<std::__cxx11::basic_string<char> >; Allocator = std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> >]’
- 1221 |     return insert_slow(k, h, make);
-      |            ~~~~~~~~~~~^~~~~~~~~~~~
-include/bflat/unordered_flat_map.hpp:715:23:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert(init_type&&) [with Key = std::__cxx11::basic_string<char>; T = long unsigned int; Hash = BadHash<std::__cxx11::basic_string<char> >; KeyEqual = std::equal_to<std::__cxx11::basic_string<char> >; Allocator = std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> >; init_type = std::pair<std::__cxx11::basic_string<char>, long unsigned int>]’
-  715 |     return insert_impl(v.first, [&](value_type* p) {
-      |            ~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  716 |       construct(p, std::move(v.first), std::move(v.second));
-      |       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  717 |     });
-      |     ~~                 
-tests/test_diff.cpp:87:24:   required from ‘void run_random(uint64_t, size_t, uint64_t, const char*) [with K = std::__cxx11::basic_string<char>; H = BadHash<std::__cxx11::basic_string<char> >; uint64_t = long unsigned int; size_t = long unsigned int]’
-   87 |       auto a = m.insert(std::make_pair(k, v));
-      |                ~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~
-tests/test_diff.cpp:238:48:   required from here
-  238 |   run_random<std::string, BadHash<std::string>>(seed + 4, S(100000), 2000, "string bad hash");
-      |   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-include/bflat/unordered_flat_map.hpp:1403:43: warning: comparison of unsigned expression in ‘< 0’ is always false [-Wtype-limits]
- 1403 |     const bool at_once = table_bytes(ng_) < BFLAT_GROW_AT_ONCE_BELOW;
-include/bflat/unordered_flat_map.hpp: In instantiation of ‘void bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::grow() [with Key = long unsigned int; T = long unsigned int; Hash = WorseHash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >]’:
-include/bflat/unordered_flat_map.hpp:1372:5:   required from ‘void bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::make_room() [with Key = long unsigned int; T = long unsigned int; Hash = WorseHash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >]’
- 1372 |     grow();
-      |     ^~~~
-include/bflat/unordered_flat_map.hpp:1301:7:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert_slow(const K&, uint64_t, F&) [with K = long unsigned int; F = bflat::unordered_flat_map<long unsigned int, long unsigned int, WorseHash<long unsigned int>, std::equal_to<long unsigned int>, std::allocator<std::pair<const long unsigned int, long unsigned int> > >::insert(init_type&&)::<lambda(bflat::unordered_flat_map<long unsigned int, long unsigned int, WorseHash<long unsigned int>, std::equal_to<long unsigned int>, std::allocator<std::pair<const long unsigned int, long unsigned int> > >::value_type*)>; Key = long unsigned int; T = long unsigned int; Hash = WorseHash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >; uint64_t = long unsigned int]’
- 1301 |       make_room();
-      |       ^~~~~~~~~
-include/bflat/unordered_flat_map.hpp:1221:23:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert_impl(const K&, F&&) [with K = long unsigned int; F = bflat::unordered_flat_map<long unsigned int, long unsigned int, WorseHash<long unsigned int>, std::equal_to<long unsigned int>, std::allocator<std::pair<const long unsigned int, long unsigned int> > >::insert(init_type&&)::<lambda(bflat::unordered_flat_map<long unsigned int, long unsigned int, WorseHash<long unsigned int>, std::equal_to<long unsigned int>, std::allocator<std::pair<const long unsigned int, long unsigned int> > >::value_type*)>; Key = long unsigned int; T = long unsigned int; Hash = WorseHash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >]’
- 1221 |     return insert_slow(k, h, make);
-      |            ~~~~~~~~~~~^~~~~~~~~~~~
-include/bflat/unordered_flat_map.hpp:715:23:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert(init_type&&) [with Key = long unsigned int; T = long unsigned int; Hash = WorseHash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >; init_type = std::pair<long unsigned int, long unsigned int>]’
-  715 |     return insert_impl(v.first, [&](value_type* p) {
-      |            ~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  716 |       construct(p, std::move(v.first), std::move(v.second));
-      |       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  717 |     });
-      |     ~~                 
-tests/test_diff.cpp:87:24:   required from ‘void run_random(uint64_t, size_t, uint64_t, const char*) [with K = long unsigned int; H = WorseHash<long unsigned int>; uint64_t = long unsigned int; size_t = long unsigned int]’
-   87 |       auto a = m.insert(std::make_pair(k, v));
-      |                ~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~
-tests/test_diff.cpp:239:44:   required from here
-  239 |   run_random<uint64_t, WorseHash<uint64_t>>(seed + 5, S(100000), 1500, "u64 unmixed 13-value hash");
-      |   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-include/bflat/unordered_flat_map.hpp:1403:43: warning: comparison of unsigned expression in ‘< 0’ is always false [-Wtype-limits]
- 1403 |     const bool at_once = table_bytes(ng_) < BFLAT_GROW_AT_ONCE_BELOW;
-[diff_incr] 102 1
+[diff] PASS
 bflat test_diff seed=102 scale=1.00 grow_at_once_below=0 migrate_groups=1
-  u64 small keyspace           ops=2000000 final_size=190 migrating_ops=22681
-  u64 large keyspace           ops=3000000 final_size=15398 migrating_ops=1142061
-  string                       ops=1000000 final_size=20962 migrating_ops=388361
-  u64 bad hash (64 values)     ops=300000 final_size=2390 migrating_ops=33958
-  string bad hash              ops=100000 final_size=1295 migrating_ops=6815
-  u64 unmixed 13-value hash    ops=100000 final_size=777 migrating_ops=4863
-  u64 growth 0..20M            n=20000000 cap=31457280 checks_during_migration=39
-  string growth 0..2M          n=2000000 cap=3932160 checks_during_migration=17
+  u64 small keyspace           ops=2000000 final_size=190 migrating_ops=30171
+  u64 large keyspace           ops=3000000 final_size=15396 migrating_ops=1157964
+  string                       ops=1000000 final_size=20963 migrating_ops=406449
+  u64 bad hash (64 values)     ops=300000 final_size=2387 migrating_ops=55936
+  string bad hash              ops=100000 final_size=1298 migrating_ops=10074
+  u64 unmixed 13-value hash    ops=100000 final_size=778 migrating_ops=20244
+  u64 growth 0..20M            n=20000000 cap=23592959 checks_during_migration=39
+  string growth 0..2M          n=2000000 cap=3932159 checks_during_migration=17
 PASS (0 failures)
-[diff_incr] rc=0
-[diff_tiers] 103 1
-bflat test_diff seed=103 scale=1.00 grow_at_once_below=16384 migrate_groups=16
-  u64 small keyspace           ops=2000000 final_size=200 migrating_ops=0
-  u64 large keyspace           ops=3000000 final_size=7789 migrating_ops=318773
-  string                       ops=1000000 final_size=22296 migrating_ops=69935
-  u64 bad hash (64 values)     ops=300000 final_size=2508 migrating_ops=2216
-  string bad hash              ops=100000 final_size=1054 migrating_ops=529
-  u64 unmixed 13-value hash    ops=100000 final_size=974 migrating_ops=237
-  u64 growth 0..20M            n=20000000 cap=27125100 checks_during_migration=20
-  string growth 0..2M          n=2000000 cap=2843115 checks_during_migration=1
-PASS (0 failures)
-[diff_tiers] rc=0
-In file included from tests/test_diff.cpp:6:
-include/bflat/unordered_flat_map.hpp: In instantiation of ‘void bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::grow() [with Key = long unsigned int; T = long unsigned int; Hash = std::hash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >]’:
-include/bflat/unordered_flat_map.hpp:1372:5:   required from ‘void bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::make_room() [with Key = long unsigned int; T = long unsigned int; Hash = std::hash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >]’
- 1372 |     grow();
-      |     ^~~~
-include/bflat/unordered_flat_map.hpp:1301:7:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert_slow(const K&, uint64_t, F&) [with K = long unsigned int; F = bflat::unordered_flat_map<long unsigned int, long unsigned int, std::hash<long unsigned int>, std::equal_to<long unsigned int>, std::allocator<std::pair<const long unsigned int, long unsigned int> > >::insert(init_type&&)::<lambda(bflat::unordered_flat_map<long unsigned int, long unsigned int, std::hash<long unsigned int>, std::equal_to<long unsigned int>, std::allocator<std::pair<const long unsigned int, long unsigned int> > >::value_type*)>; Key = long unsigned int; T = long unsigned int; Hash = std::hash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >; uint64_t = long unsigned int]’
- 1301 |       make_room();
-      |       ^~~~~~~~~
-include/bflat/unordered_flat_map.hpp:1221:23:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert_impl(const K&, F&&) [with K = long unsigned int; F = bflat::unordered_flat_map<long unsigned int, long unsigned int, std::hash<long unsigned int>, std::equal_to<long unsigned int>, std::allocator<std::pair<const long unsigned int, long unsigned int> > >::insert(init_type&&)::<lambda(bflat::unordered_flat_map<long unsigned int, long unsigned int, std::hash<long unsigned int>, std::equal_to<long unsigned int>, std::allocator<std::pair<const long unsigned int, long unsigned int> > >::value_type*)>; Key = long unsigned int; T = long unsigned int; Hash = std::hash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >]’
- 1221 |     return insert_slow(k, h, make);
-      |            ~~~~~~~~~~~^~~~~~~~~~~~
-include/bflat/unordered_flat_map.hpp:715:23:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert(init_type&&) [with Key = long unsigned int; T = long unsigned int; Hash = std::hash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >; init_type = std::pair<long unsigned int, long unsigned int>]’
-  715 |     return insert_impl(v.first, [&](value_type* p) {
-      |            ~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  716 |       construct(p, std::move(v.first), std::move(v.second));
-      |       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  717 |     });
-      |     ~~                 
-tests/test_diff.cpp:87:24:   required from ‘void run_random(uint64_t, size_t, uint64_t, const char*) [with K = long unsigned int; H = std::hash<long unsigned int>; uint64_t = long unsigned int; size_t = long unsigned int]’
-   87 |       auto a = m.insert(std::make_pair(k, v));
-      |                ~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~
-tests/test_diff.cpp:234:44:   required from here
-  234 |   run_random<uint64_t, std::hash<uint64_t>>(seed, S(2000000), 300, "u64 small keyspace");
-      |   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-include/bflat/unordered_flat_map.hpp:1403:43: warning: comparison of unsigned expression in ‘< 0’ is always false [-Wtype-limits]
- 1403 |     const bool at_once = table_bytes(ng_) < BFLAT_GROW_AT_ONCE_BELOW;
-include/bflat/unordered_flat_map.hpp: In instantiation of ‘void bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::grow() [with Key = std::__cxx11::basic_string<char>; T = long unsigned int; Hash = std::hash<std::__cxx11::basic_string<char> >; KeyEqual = std::equal_to<std::__cxx11::basic_string<char> >; Allocator = std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> >]’:
-include/bflat/unordered_flat_map.hpp:1372:5:   required from ‘void bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::make_room() [with Key = std::__cxx11::basic_string<char>; T = long unsigned int; Hash = std::hash<std::__cxx11::basic_string<char> >; KeyEqual = std::equal_to<std::__cxx11::basic_string<char> >; Allocator = std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> >]’
- 1372 |     grow();
-      |     ^~~~
-include/bflat/unordered_flat_map.hpp:1301:7:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert_slow(const K&, uint64_t, F&) [with K = std::__cxx11::basic_string<char>; F = bflat::unordered_flat_map<std::__cxx11::basic_string<char>, long unsigned int, std::hash<std::__cxx11::basic_string<char> >, std::equal_to<std::__cxx11::basic_string<char> >, std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> > >::insert(init_type&&)::<lambda(bflat::unordered_flat_map<std::__cxx11::basic_string<char>, long unsigned int, std::hash<std::__cxx11::basic_string<char> >, std::equal_to<std::__cxx11::basic_string<char> >, std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> > >::value_type*)>; Key = std::__cxx11::basic_string<char>; T = long unsigned int; Hash = std::hash<std::__cxx11::basic_string<char> >; KeyEqual = std::equal_to<std::__cxx11::basic_string<char> >; Allocator = std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> >; uint64_t = long unsigned int]’
- 1301 |       make_room();
-      |       ^~~~~~~~~
-include/bflat/unordered_flat_map.hpp:1221:23:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert_impl(const K&, F&&) [with K = std::__cxx11::basic_string<char>; F = bflat::unordered_flat_map<std::__cxx11::basic_string<char>, long unsigned int, std::hash<std::__cxx11::basic_string<char> >, std::equal_to<std::__cxx11::basic_string<char> >, std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> > >::insert(init_type&&)::<lambda(bflat::unordered_flat_map<std::__cxx11::basic_string<char>, long unsigned int, std::hash<std::__cxx11::basic_string<char> >, std::equal_to<std::__cxx11::basic_string<char> >, std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> > >::value_type*)>; Key = std::__cxx11::basic_string<char>; T = long unsigned int; Hash = std::hash<std::__cxx11::basic_string<char> >; KeyEqual = std::equal_to<std::__cxx11::basic_string<char> >; Allocator = std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> >]’
- 1221 |     return insert_slow(k, h, make);
-      |            ~~~~~~~~~~~^~~~~~~~~~~~
-include/bflat/unordered_flat_map.hpp:715:23:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert(init_type&&) [with Key = std::__cxx11::basic_string<char>; T = long unsigned int; Hash = std::hash<std::__cxx11::basic_string<char> >; KeyEqual = std::equal_to<std::__cxx11::basic_string<char> >; Allocator = std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> >; init_type = std::pair<std::__cxx11::basic_string<char>, long unsigned int>]’
-  715 |     return insert_impl(v.first, [&](value_type* p) {
-      |            ~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  716 |       construct(p, std::move(v.first), std::move(v.second));
-      |       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  717 |     });
-      |     ~~                 
-tests/test_diff.cpp:87:24:   required from ‘void run_random(uint64_t, size_t, uint64_t, const char*) [with K = std::__cxx11::basic_string<char>; H = std::hash<std::__cxx11::basic_string<char> >; uint64_t = long unsigned int; size_t = long unsigned int]’
-   87 |       auto a = m.insert(std::make_pair(k, v));
-      |                ~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~
-tests/test_diff.cpp:236:50:   required from here
-  236 |   run_random<std::string, std::hash<std::string>>(seed + 2, S(1000000), 50000, "string");
-      |   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-include/bflat/unordered_flat_map.hpp:1403:43: warning: comparison of unsigned expression in ‘< 0’ is always false [-Wtype-limits]
- 1403 |     const bool at_once = table_bytes(ng_) < BFLAT_GROW_AT_ONCE_BELOW;
-include/bflat/unordered_flat_map.hpp: In instantiation of ‘void bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::grow() [with Key = long unsigned int; T = long unsigned int; Hash = BadHash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >]’:
-include/bflat/unordered_flat_map.hpp:1372:5:   required from ‘void bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::make_room() [with Key = long unsigned int; T = long unsigned int; Hash = BadHash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >]’
- 1372 |     grow();
-      |     ^~~~
-include/bflat/unordered_flat_map.hpp:1301:7:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert_slow(const K&, uint64_t, F&) [with K = long unsigned int; F = bflat::unordered_flat_map<long unsigned int, long unsigned int, BadHash<long unsigned int>, std::equal_to<long unsigned int>, std::allocator<std::pair<const long unsigned int, long unsigned int> > >::insert(init_type&&)::<lambda(bflat::unordered_flat_map<long unsigned int, long unsigned int, BadHash<long unsigned int>, std::equal_to<long unsigned int>, std::allocator<std::pair<const long unsigned int, long unsigned int> > >::value_type*)>; Key = long unsigned int; T = long unsigned int; Hash = BadHash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >; uint64_t = long unsigned int]’
- 1301 |       make_room();
-      |       ^~~~~~~~~
-include/bflat/unordered_flat_map.hpp:1221:23:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert_impl(const K&, F&&) [with K = long unsigned int; F = bflat::unordered_flat_map<long unsigned int, long unsigned int, BadHash<long unsigned int>, std::equal_to<long unsigned int>, std::allocator<std::pair<const long unsigned int, long unsigned int> > >::insert(init_type&&)::<lambda(bflat::unordered_flat_map<long unsigned int, long unsigned int, BadHash<long unsigned int>, std::equal_to<long unsigned int>, std::allocator<std::pair<const long unsigned int, long unsigned int> > >::value_type*)>; Key = long unsigned int; T = long unsigned int; Hash = BadHash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >]’
- 1221 |     return insert_slow(k, h, make);
-      |            ~~~~~~~~~~~^~~~~~~~~~~~
-include/bflat/unordered_flat_map.hpp:715:23:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert(init_type&&) [with Key = long unsigned int; T = long unsigned int; Hash = BadHash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >; init_type = std::pair<long unsigned int, long unsigned int>]’
-  715 |     return insert_impl(v.first, [&](value_type* p) {
-      |            ~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  716 |       construct(p, std::move(v.first), std::move(v.second));
-      |       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  717 |     });
-      |     ~~                 
-tests/test_diff.cpp:87:24:   required from ‘void run_random(uint64_t, size_t, uint64_t, const char*) [with K = long unsigned int; H = BadHash<long unsigned int>; uint64_t = long unsigned int; size_t = long unsigned int]’
-   87 |       auto a = m.insert(std::make_pair(k, v));
-      |                ~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~
-tests/test_diff.cpp:237:42:   required from here
-  237 |   run_random<uint64_t, BadHash<uint64_t>>(seed + 3, S(300000), 4000, "u64 bad hash (64 values)");
-      |   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-include/bflat/unordered_flat_map.hpp:1403:43: warning: comparison of unsigned expression in ‘< 0’ is always false [-Wtype-limits]
- 1403 |     const bool at_once = table_bytes(ng_) < BFLAT_GROW_AT_ONCE_BELOW;
-include/bflat/unordered_flat_map.hpp: In instantiation of ‘void bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::grow() [with Key = std::__cxx11::basic_string<char>; T = long unsigned int; Hash = BadHash<std::__cxx11::basic_string<char> >; KeyEqual = std::equal_to<std::__cxx11::basic_string<char> >; Allocator = std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> >]’:
-include/bflat/unordered_flat_map.hpp:1372:5:   required from ‘void bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::make_room() [with Key = std::__cxx11::basic_string<char>; T = long unsigned int; Hash = BadHash<std::__cxx11::basic_string<char> >; KeyEqual = std::equal_to<std::__cxx11::basic_string<char> >; Allocator = std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> >]’
- 1372 |     grow();
-      |     ^~~~
-include/bflat/unordered_flat_map.hpp:1301:7:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert_slow(const K&, uint64_t, F&) [with K = std::__cxx11::basic_string<char>; F = bflat::unordered_flat_map<std::__cxx11::basic_string<char>, long unsigned int, BadHash<std::__cxx11::basic_string<char> >, std::equal_to<std::__cxx11::basic_string<char> >, std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> > >::insert(init_type&&)::<lambda(bflat::unordered_flat_map<std::__cxx11::basic_string<char>, long unsigned int, BadHash<std::__cxx11::basic_string<char> >, std::equal_to<std::__cxx11::basic_string<char> >, std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> > >::value_type*)>; Key = std::__cxx11::basic_string<char>; T = long unsigned int; Hash = BadHash<std::__cxx11::basic_string<char> >; KeyEqual = std::equal_to<std::__cxx11::basic_string<char> >; Allocator = std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> >; uint64_t = long unsigned int]’
- 1301 |       make_room();
-      |       ^~~~~~~~~
-include/bflat/unordered_flat_map.hpp:1221:23:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert_impl(const K&, F&&) [with K = std::__cxx11::basic_string<char>; F = bflat::unordered_flat_map<std::__cxx11::basic_string<char>, long unsigned int, BadHash<std::__cxx11::basic_string<char> >, std::equal_to<std::__cxx11::basic_string<char> >, std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> > >::insert(init_type&&)::<lambda(bflat::unordered_flat_map<std::__cxx11::basic_string<char>, long unsigned int, BadHash<std::__cxx11::basic_string<char> >, std::equal_to<std::__cxx11::basic_string<char> >, std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> > >::value_type*)>; Key = std::__cxx11::basic_string<char>; T = long unsigned int; Hash = BadHash<std::__cxx11::basic_string<char> >; KeyEqual = std::equal_to<std::__cxx11::basic_string<char> >; Allocator = std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> >]’
- 1221 |     return insert_slow(k, h, make);
-      |            ~~~~~~~~~~~^~~~~~~~~~~~
-include/bflat/unordered_flat_map.hpp:715:23:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert(init_type&&) [with Key = std::__cxx11::basic_string<char>; T = long unsigned int; Hash = BadHash<std::__cxx11::basic_string<char> >; KeyEqual = std::equal_to<std::__cxx11::basic_string<char> >; Allocator = std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> >; init_type = std::pair<std::__cxx11::basic_string<char>, long unsigned int>]’
-  715 |     return insert_impl(v.first, [&](value_type* p) {
-      |            ~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  716 |       construct(p, std::move(v.first), std::move(v.second));
-      |       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  717 |     });
-      |     ~~                 
-tests/test_diff.cpp:87:24:   required from ‘void run_random(uint64_t, size_t, uint64_t, const char*) [with K = std::__cxx11::basic_string<char>; H = BadHash<std::__cxx11::basic_string<char> >; uint64_t = long unsigned int; size_t = long unsigned int]’
-   87 |       auto a = m.insert(std::make_pair(k, v));
-      |                ~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~
-tests/test_diff.cpp:238:48:   required from here
-  238 |   run_random<std::string, BadHash<std::string>>(seed + 4, S(100000), 2000, "string bad hash");
-      |   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-include/bflat/unordered_flat_map.hpp:1403:43: warning: comparison of unsigned expression in ‘< 0’ is always false [-Wtype-limits]
- 1403 |     const bool at_once = table_bytes(ng_) < BFLAT_GROW_AT_ONCE_BELOW;
-include/bflat/unordered_flat_map.hpp: In instantiation of ‘void bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::grow() [with Key = long unsigned int; T = long unsigned int; Hash = WorseHash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >]’:
-include/bflat/unordered_flat_map.hpp:1372:5:   required from ‘void bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::make_room() [with Key = long unsigned int; T = long unsigned int; Hash = WorseHash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >]’
- 1372 |     grow();
-      |     ^~~~
-include/bflat/unordered_flat_map.hpp:1301:7:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert_slow(const K&, uint64_t, F&) [with K = long unsigned int; F = bflat::unordered_flat_map<long unsigned int, long unsigned int, WorseHash<long unsigned int>, std::equal_to<long unsigned int>, std::allocator<std::pair<const long unsigned int, long unsigned int> > >::insert(init_type&&)::<lambda(bflat::unordered_flat_map<long unsigned int, long unsigned int, WorseHash<long unsigned int>, std::equal_to<long unsigned int>, std::allocator<std::pair<const long unsigned int, long unsigned int> > >::value_type*)>; Key = long unsigned int; T = long unsigned int; Hash = WorseHash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >; uint64_t = long unsigned int]’
- 1301 |       make_room();
-      |       ^~~~~~~~~
-include/bflat/unordered_flat_map.hpp:1221:23:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert_impl(const K&, F&&) [with K = long unsigned int; F = bflat::unordered_flat_map<long unsigned int, long unsigned int, WorseHash<long unsigned int>, std::equal_to<long unsigned int>, std::allocator<std::pair<const long unsigned int, long unsigned int> > >::insert(init_type&&)::<lambda(bflat::unordered_flat_map<long unsigned int, long unsigned int, WorseHash<long unsigned int>, std::equal_to<long unsigned int>, std::allocator<std::pair<const long unsigned int, long unsigned int> > >::value_type*)>; Key = long unsigned int; T = long unsigned int; Hash = WorseHash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >]’
- 1221 |     return insert_slow(k, h, make);
-      |            ~~~~~~~~~~~^~~~~~~~~~~~
-include/bflat/unordered_flat_map.hpp:715:23:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert(init_type&&) [with Key = long unsigned int; T = long unsigned int; Hash = WorseHash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >; init_type = std::pair<long unsigned int, long unsigned int>]’
-  715 |     return insert_impl(v.first, [&](value_type* p) {
-      |            ~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  716 |       construct(p, std::move(v.first), std::move(v.second));
-      |       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  717 |     });
-      |     ~~                 
-tests/test_diff.cpp:87:24:   required from ‘void run_random(uint64_t, size_t, uint64_t, const char*) [with K = long unsigned int; H = WorseHash<long unsigned int>; uint64_t = long unsigned int; size_t = long unsigned int]’
-   87 |       auto a = m.insert(std::make_pair(k, v));
-      |                ~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~
-tests/test_diff.cpp:239:44:   required from here
-  239 |   run_random<uint64_t, WorseHash<uint64_t>>(seed + 5, S(100000), 1500, "u64 unmixed 13-value hash");
-      |   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-include/bflat/unordered_flat_map.hpp:1403:43: warning: comparison of unsigned expression in ‘< 0’ is always false [-Wtype-limits]
- 1403 |     const bool at_once = table_bytes(ng_) < BFLAT_GROW_AT_ONCE_BELOW;
-[diff_neonemu] 104 0.3
-bflat test_diff seed=104 scale=0.30 grow_at_once_below=0 migrate_groups=16
-  u64 small keyspace           ops=600000 final_size=177 migrating_ops=0
-  u64 large keyspace           ops=900000 final_size=25108 migrating_ops=82540
-  string                       ops=300000 final_size=10289 migrating_ops=13985
-  u64 bad hash (64 values)     ops=90000 final_size=2545 migrating_ops=1130
-  string bad hash              ops=30000 final_size=1254 migrating_ops=126
-  u64 unmixed 13-value hash    ops=30000 final_size=982 migrating_ops=60
-  u64 growth 0..20M            n=6000000 cap=7864320 checks_during_migration=0
-  string growth 0..2M          n=600000 cap=983040 checks_during_migration=0
-PASS (0 failures)
-[diff_neonemu] rc=0
-In file included from tests/test_diff.cpp:6:
-include/bflat/unordered_flat_map.hpp: In instantiation of ‘void bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::grow() [with Key = long unsigned int; T = long unsigned int; Hash = std::hash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >]’:
-include/bflat/unordered_flat_map.hpp:1372:5:   required from ‘void bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::make_room() [with Key = long unsigned int; T = long unsigned int; Hash = std::hash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >]’
- 1372 |     grow();
-      |     ^~~~
-include/bflat/unordered_flat_map.hpp:1301:7:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert_slow(const K&, uint64_t, F&) [with K = long unsigned int; F = bflat::unordered_flat_map<long unsigned int, long unsigned int, std::hash<long unsigned int>, std::equal_to<long unsigned int>, std::allocator<std::pair<const long unsigned int, long unsigned int> > >::insert(init_type&&)::<lambda(bflat::unordered_flat_map<long unsigned int, long unsigned int, std::hash<long unsigned int>, std::equal_to<long unsigned int>, std::allocator<std::pair<const long unsigned int, long unsigned int> > >::value_type*)>; Key = long unsigned int; T = long unsigned int; Hash = std::hash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >; uint64_t = long unsigned int]’
- 1301 |       make_room();
-      |       ^~~~~~~~~
-include/bflat/unordered_flat_map.hpp:1229:23:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert_impl(const K&, F&&) [with K = long unsigned int; F = bflat::unordered_flat_map<long unsigned int, long unsigned int, std::hash<long unsigned int>, std::equal_to<long unsigned int>, std::allocator<std::pair<const long unsigned int, long unsigned int> > >::insert(init_type&&)::<lambda(bflat::unordered_flat_map<long unsigned int, long unsigned int, std::hash<long unsigned int>, std::equal_to<long unsigned int>, std::allocator<std::pair<const long unsigned int, long unsigned int> > >::value_type*)>; Key = long unsigned int; T = long unsigned int; Hash = std::hash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >]’
- 1229 |     return insert_slow(k, h, make);
-      |            ~~~~~~~~~~~^~~~~~~~~~~~
-include/bflat/unordered_flat_map.hpp:715:23:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert(init_type&&) [with Key = long unsigned int; T = long unsigned int; Hash = std::hash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >; init_type = std::pair<long unsigned int, long unsigned int>]’
-  715 |     return insert_impl(v.first, [&](value_type* p) {
-      |            ~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  716 |       construct(p, std::move(v.first), std::move(v.second));
-      |       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  717 |     });
-      |     ~~                 
-tests/test_diff.cpp:87:24:   required from ‘void run_random(uint64_t, size_t, uint64_t, const char*) [with K = long unsigned int; H = std::hash<long unsigned int>; uint64_t = long unsigned int; size_t = long unsigned int]’
-   87 |       auto a = m.insert(std::make_pair(k, v));
-      |                ~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~
-tests/test_diff.cpp:234:44:   required from here
-  234 |   run_random<uint64_t, std::hash<uint64_t>>(seed, S(2000000), 300, "u64 small keyspace");
-      |   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-include/bflat/unordered_flat_map.hpp:1403:43: warning: comparison of unsigned expression in ‘< 0’ is always false [-Wtype-limits]
- 1403 |     const bool at_once = table_bytes(ng_) < BFLAT_GROW_AT_ONCE_BELOW;
-include/bflat/unordered_flat_map.hpp: In instantiation of ‘void bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::grow() [with Key = std::__cxx11::basic_string<char>; T = long unsigned int; Hash = std::hash<std::__cxx11::basic_string<char> >; KeyEqual = std::equal_to<std::__cxx11::basic_string<char> >; Allocator = std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> >]’:
-include/bflat/unordered_flat_map.hpp:1372:5:   required from ‘void bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::make_room() [with Key = std::__cxx11::basic_string<char>; T = long unsigned int; Hash = std::hash<std::__cxx11::basic_string<char> >; KeyEqual = std::equal_to<std::__cxx11::basic_string<char> >; Allocator = std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> >]’
- 1372 |     grow();
-      |     ^~~~
-include/bflat/unordered_flat_map.hpp:1301:7:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert_slow(const K&, uint64_t, F&) [with K = std::__cxx11::basic_string<char>; F = bflat::unordered_flat_map<std::__cxx11::basic_string<char>, long unsigned int, std::hash<std::__cxx11::basic_string<char> >, std::equal_to<std::__cxx11::basic_string<char> >, std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> > >::insert(init_type&&)::<lambda(bflat::unordered_flat_map<std::__cxx11::basic_string<char>, long unsigned int, std::hash<std::__cxx11::basic_string<char> >, std::equal_to<std::__cxx11::basic_string<char> >, std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> > >::value_type*)>; Key = std::__cxx11::basic_string<char>; T = long unsigned int; Hash = std::hash<std::__cxx11::basic_string<char> >; KeyEqual = std::equal_to<std::__cxx11::basic_string<char> >; Allocator = std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> >; uint64_t = long unsigned int]’
- 1301 |       make_room();
-      |       ^~~~~~~~~
-include/bflat/unordered_flat_map.hpp:1229:23:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert_impl(const K&, F&&) [with K = std::__cxx11::basic_string<char>; F = bflat::unordered_flat_map<std::__cxx11::basic_string<char>, long unsigned int, std::hash<std::__cxx11::basic_string<char> >, std::equal_to<std::__cxx11::basic_string<char> >, std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> > >::insert(init_type&&)::<lambda(bflat::unordered_flat_map<std::__cxx11::basic_string<char>, long unsigned int, std::hash<std::__cxx11::basic_string<char> >, std::equal_to<std::__cxx11::basic_string<char> >, std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> > >::value_type*)>; Key = std::__cxx11::basic_string<char>; T = long unsigned int; Hash = std::hash<std::__cxx11::basic_string<char> >; KeyEqual = std::equal_to<std::__cxx11::basic_string<char> >; Allocator = std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> >]’
- 1229 |     return insert_slow(k, h, make);
-      |            ~~~~~~~~~~~^~~~~~~~~~~~
-include/bflat/unordered_flat_map.hpp:715:23:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert(init_type&&) [with Key = std::__cxx11::basic_string<char>; T = long unsigned int; Hash = std::hash<std::__cxx11::basic_string<char> >; KeyEqual = std::equal_to<std::__cxx11::basic_string<char> >; Allocator = std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> >; init_type = std::pair<std::__cxx11::basic_string<char>, long unsigned int>]’
-  715 |     return insert_impl(v.first, [&](value_type* p) {
-      |            ~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  716 |       construct(p, std::move(v.first), std::move(v.second));
-      |       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  717 |     });
-      |     ~~                 
-tests/test_diff.cpp:87:24:   required from ‘void run_random(uint64_t, size_t, uint64_t, const char*) [with K = std::__cxx11::basic_string<char>; H = std::hash<std::__cxx11::basic_string<char> >; uint64_t = long unsigned int; size_t = long unsigned int]’
-   87 |       auto a = m.insert(std::make_pair(k, v));
-      |                ~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~
-tests/test_diff.cpp:236:50:   required from here
-  236 |   run_random<std::string, std::hash<std::string>>(seed + 2, S(1000000), 50000, "string");
-      |   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-include/bflat/unordered_flat_map.hpp:1403:43: warning: comparison of unsigned expression in ‘< 0’ is always false [-Wtype-limits]
- 1403 |     const bool at_once = table_bytes(ng_) < BFLAT_GROW_AT_ONCE_BELOW;
-include/bflat/unordered_flat_map.hpp: In instantiation of ‘void bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::grow() [with Key = long unsigned int; T = long unsigned int; Hash = BadHash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >]’:
-include/bflat/unordered_flat_map.hpp:1372:5:   required from ‘void bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::make_room() [with Key = long unsigned int; T = long unsigned int; Hash = BadHash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >]’
- 1372 |     grow();
-      |     ^~~~
-include/bflat/unordered_flat_map.hpp:1301:7:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert_slow(const K&, uint64_t, F&) [with K = long unsigned int; F = bflat::unordered_flat_map<long unsigned int, long unsigned int, BadHash<long unsigned int>, std::equal_to<long unsigned int>, std::allocator<std::pair<const long unsigned int, long unsigned int> > >::insert(init_type&&)::<lambda(bflat::unordered_flat_map<long unsigned int, long unsigned int, BadHash<long unsigned int>, std::equal_to<long unsigned int>, std::allocator<std::pair<const long unsigned int, long unsigned int> > >::value_type*)>; Key = long unsigned int; T = long unsigned int; Hash = BadHash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >; uint64_t = long unsigned int]’
- 1301 |       make_room();
-      |       ^~~~~~~~~
-include/bflat/unordered_flat_map.hpp:1229:23:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert_impl(const K&, F&&) [with K = long unsigned int; F = bflat::unordered_flat_map<long unsigned int, long unsigned int, BadHash<long unsigned int>, std::equal_to<long unsigned int>, std::allocator<std::pair<const long unsigned int, long unsigned int> > >::insert(init_type&&)::<lambda(bflat::unordered_flat_map<long unsigned int, long unsigned int, BadHash<long unsigned int>, std::equal_to<long unsigned int>, std::allocator<std::pair<const long unsigned int, long unsigned int> > >::value_type*)>; Key = long unsigned int; T = long unsigned int; Hash = BadHash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >]’
- 1229 |     return insert_slow(k, h, make);
-      |            ~~~~~~~~~~~^~~~~~~~~~~~
-include/bflat/unordered_flat_map.hpp:715:23:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert(init_type&&) [with Key = long unsigned int; T = long unsigned int; Hash = BadHash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >; init_type = std::pair<long unsigned int, long unsigned int>]’
-  715 |     return insert_impl(v.first, [&](value_type* p) {
-      |            ~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  716 |       construct(p, std::move(v.first), std::move(v.second));
-      |       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  717 |     });
-      |     ~~                 
-tests/test_diff.cpp:87:24:   required from ‘void run_random(uint64_t, size_t, uint64_t, const char*) [with K = long unsigned int; H = BadHash<long unsigned int>; uint64_t = long unsigned int; size_t = long unsigned int]’
-   87 |       auto a = m.insert(std::make_pair(k, v));
-      |                ~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~
-tests/test_diff.cpp:237:42:   required from here
-  237 |   run_random<uint64_t, BadHash<uint64_t>>(seed + 3, S(300000), 4000, "u64 bad hash (64 values)");
-      |   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-include/bflat/unordered_flat_map.hpp:1403:43: warning: comparison of unsigned expression in ‘< 0’ is always false [-Wtype-limits]
- 1403 |     const bool at_once = table_bytes(ng_) < BFLAT_GROW_AT_ONCE_BELOW;
-include/bflat/unordered_flat_map.hpp: In instantiation of ‘void bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::grow() [with Key = std::__cxx11::basic_string<char>; T = long unsigned int; Hash = BadHash<std::__cxx11::basic_string<char> >; KeyEqual = std::equal_to<std::__cxx11::basic_string<char> >; Allocator = std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> >]’:
-include/bflat/unordered_flat_map.hpp:1372:5:   required from ‘void bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::make_room() [with Key = std::__cxx11::basic_string<char>; T = long unsigned int; Hash = BadHash<std::__cxx11::basic_string<char> >; KeyEqual = std::equal_to<std::__cxx11::basic_string<char> >; Allocator = std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> >]’
- 1372 |     grow();
-      |     ^~~~
-include/bflat/unordered_flat_map.hpp:1301:7:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert_slow(const K&, uint64_t, F&) [with K = std::__cxx11::basic_string<char>; F = bflat::unordered_flat_map<std::__cxx11::basic_string<char>, long unsigned int, BadHash<std::__cxx11::basic_string<char> >, std::equal_to<std::__cxx11::basic_string<char> >, std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> > >::insert(init_type&&)::<lambda(bflat::unordered_flat_map<std::__cxx11::basic_string<char>, long unsigned int, BadHash<std::__cxx11::basic_string<char> >, std::equal_to<std::__cxx11::basic_string<char> >, std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> > >::value_type*)>; Key = std::__cxx11::basic_string<char>; T = long unsigned int; Hash = BadHash<std::__cxx11::basic_string<char> >; KeyEqual = std::equal_to<std::__cxx11::basic_string<char> >; Allocator = std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> >; uint64_t = long unsigned int]’
- 1301 |       make_room();
-      |       ^~~~~~~~~
-include/bflat/unordered_flat_map.hpp:1229:23:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert_impl(const K&, F&&) [with K = std::__cxx11::basic_string<char>; F = bflat::unordered_flat_map<std::__cxx11::basic_string<char>, long unsigned int, BadHash<std::__cxx11::basic_string<char> >, std::equal_to<std::__cxx11::basic_string<char> >, std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> > >::insert(init_type&&)::<lambda(bflat::unordered_flat_map<std::__cxx11::basic_string<char>, long unsigned int, BadHash<std::__cxx11::basic_string<char> >, std::equal_to<std::__cxx11::basic_string<char> >, std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> > >::value_type*)>; Key = std::__cxx11::basic_string<char>; T = long unsigned int; Hash = BadHash<std::__cxx11::basic_string<char> >; KeyEqual = std::equal_to<std::__cxx11::basic_string<char> >; Allocator = std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> >]’
- 1229 |     return insert_slow(k, h, make);
-      |            ~~~~~~~~~~~^~~~~~~~~~~~
-include/bflat/unordered_flat_map.hpp:715:23:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert(init_type&&) [with Key = std::__cxx11::basic_string<char>; T = long unsigned int; Hash = BadHash<std::__cxx11::basic_string<char> >; KeyEqual = std::equal_to<std::__cxx11::basic_string<char> >; Allocator = std::allocator<std::pair<const std::__cxx11::basic_string<char>, long unsigned int> >; init_type = std::pair<std::__cxx11::basic_string<char>, long unsigned int>]’
-  715 |     return insert_impl(v.first, [&](value_type* p) {
-      |            ~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  716 |       construct(p, std::move(v.first), std::move(v.second));
-      |       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  717 |     });
-      |     ~~                 
-tests/test_diff.cpp:87:24:   required from ‘void run_random(uint64_t, size_t, uint64_t, const char*) [with K = std::__cxx11::basic_string<char>; H = BadHash<std::__cxx11::basic_string<char> >; uint64_t = long unsigned int; size_t = long unsigned int]’
-   87 |       auto a = m.insert(std::make_pair(k, v));
-      |                ~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~
-tests/test_diff.cpp:238:48:   required from here
-  238 |   run_random<std::string, BadHash<std::string>>(seed + 4, S(100000), 2000, "string bad hash");
-      |   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-include/bflat/unordered_flat_map.hpp:1403:43: warning: comparison of unsigned expression in ‘< 0’ is always false [-Wtype-limits]
- 1403 |     const bool at_once = table_bytes(ng_) < BFLAT_GROW_AT_ONCE_BELOW;
-include/bflat/unordered_flat_map.hpp: In instantiation of ‘void bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::grow() [with Key = long unsigned int; T = long unsigned int; Hash = WorseHash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >]’:
-include/bflat/unordered_flat_map.hpp:1372:5:   required from ‘void bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::make_room() [with Key = long unsigned int; T = long unsigned int; Hash = WorseHash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >]’
- 1372 |     grow();
-      |     ^~~~
-include/bflat/unordered_flat_map.hpp:1301:7:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert_slow(const K&, uint64_t, F&) [with K = long unsigned int; F = bflat::unordered_flat_map<long unsigned int, long unsigned int, WorseHash<long unsigned int>, std::equal_to<long unsigned int>, std::allocator<std::pair<const long unsigned int, long unsigned int> > >::insert(init_type&&)::<lambda(bflat::unordered_flat_map<long unsigned int, long unsigned int, WorseHash<long unsigned int>, std::equal_to<long unsigned int>, std::allocator<std::pair<const long unsigned int, long unsigned int> > >::value_type*)>; Key = long unsigned int; T = long unsigned int; Hash = WorseHash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >; uint64_t = long unsigned int]’
- 1301 |       make_room();
-      |       ^~~~~~~~~
-include/bflat/unordered_flat_map.hpp:1229:23:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert_impl(const K&, F&&) [with K = long unsigned int; F = bflat::unordered_flat_map<long unsigned int, long unsigned int, WorseHash<long unsigned int>, std::equal_to<long unsigned int>, std::allocator<std::pair<const long unsigned int, long unsigned int> > >::insert(init_type&&)::<lambda(bflat::unordered_flat_map<long unsigned int, long unsigned int, WorseHash<long unsigned int>, std::equal_to<long unsigned int>, std::allocator<std::pair<const long unsigned int, long unsigned int> > >::value_type*)>; Key = long unsigned int; T = long unsigned int; Hash = WorseHash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >]’
- 1229 |     return insert_slow(k, h, make);
-      |            ~~~~~~~~~~~^~~~~~~~~~~~
-include/bflat/unordered_flat_map.hpp:715:23:   required from ‘std::pair<bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::iterator_impl<false>, bool> bflat::unordered_flat_map<Key, T, Hash, KeyEqual, Allocator>::insert(init_type&&) [with Key = long unsigned int; T = long unsigned int; Hash = WorseHash<long unsigned int>; KeyEqual = std::equal_to<long unsigned int>; Allocator = std::allocator<std::pair<const long unsigned int, long unsigned int> >; init_type = std::pair<long unsigned int, long unsigned int>]’
-  715 |     return insert_impl(v.first, [&](value_type* p) {
-      |            ~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  716 |       construct(p, std::move(v.first), std::move(v.second));
-      |       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  717 |     });
-      |     ~~                 
-tests/test_diff.cpp:87:24:   required from ‘void run_random(uint64_t, size_t, uint64_t, const char*) [with K = long unsigned int; H = WorseHash<long unsigned int>; uint64_t = long unsigned int; size_t = long unsigned int]’
-   87 |       auto a = m.insert(std::make_pair(k, v));
-      |                ~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~
-tests/test_diff.cpp:239:44:   required from here
-  239 |   run_random<uint64_t, WorseHash<uint64_t>>(seed + 5, S(100000), 1500, "u64 unmixed 13-value hash");
-      |   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-include/bflat/unordered_flat_map.hpp:1403:43: warning: comparison of unsigned expression in ‘< 0’ is always false [-Wtype-limits]
- 1403 |     const bool at_once = table_bytes(ng_) < BFLAT_GROW_AT_ONCE_BELOW;
-[diff_nosimd] 105 0.3
+[diff_incremental] PASS
 bflat test_diff seed=105 scale=0.30 grow_at_once_below=0 migrate_groups=16
-  u64 small keyspace           ops=600000 final_size=201 migrating_ops=14
-  u64 large keyspace           ops=900000 final_size=48223 migrating_ops=97843
-  string                       ops=300000 final_size=20062 migrating_ops=26828
-  u64 bad hash (64 values)     ops=90000 final_size=2502 migrating_ops=1161
-  string bad hash              ops=30000 final_size=1312 migrating_ops=240
-  u64 unmixed 13-value hash    ops=30000 final_size=965 migrating_ops=63
-  u64 growth 0..20M            n=6000000 cap=7864320 checks_during_migration=2
-  string growth 0..2M          n=600000 cap=983040 checks_during_migration=1
+  u64 small keyspace           ops=600000 final_size=201 migrating_ops=28
+  u64 large keyspace           ops=900000 final_size=48223 migrating_ops=95031
+  string                       ops=300000 final_size=20062 migrating_ops=28553
+  u64 bad hash (64 values)     ops=90000 final_size=2505 migrating_ops=1564
+  string bad hash              ops=30000 final_size=1309 migrating_ops=201
+  u64 unmixed 13-value hash    ops=30000 final_size=968 migrating_ops=190
+  u64 growth 0..20M            n=6000000 cap=7864319 checks_during_migration=2
+  string growth 0..2M          n=600000 cap=983039 checks_during_migration=1
 PASS (0 failures)
-[diff_nosimd] rc=0
-[asan_diff_incr] 106 0.25
-bflat test_diff seed=106 scale=0.25 grow_at_once_below=0 migrate_groups=1
-  u64 small keyspace           ops=500000 final_size=186 migrating_ops=5186
-  u64 large keyspace           ops=750000 final_size=32406 migrating_ops=337315
-  string                       ops=250000 final_size=13437 migrating_ops=118353
-  u64 bad hash (64 values)     ops=75000 final_size=2029 migrating_ops=9335
-  string bad hash              ops=25000 final_size=1281 migrating_ops=2534
-  u64 unmixed 13-value hash    ops=25000 final_size=960 migrating_ops=1067
-  u64 growth 0..20M            n=5000000 cap=7864320 checks_during_migration=15
-  string growth 0..2M          n=500000 cap=983040 checks_during_migration=2
-PASS (0 failures)
-[asan_diff_incr] rc=0
-[asan_diff_nommap] 107 0.25
+[diff_scalar] PASS
+  growth: 19 capacity changes up to 7864319 slots
+test_api: PASS (0 failures)
+[asan_api] PASS
 bflat test_diff seed=107 scale=0.25 grow_at_once_below=0 migrate_groups=3
-  u64 small keyspace           ops=500000 final_size=190 migrating_ops=2219
-  u64 large keyspace           ops=750000 final_size=34530 migrating_ops=212025
-  string                       ops=250000 final_size=20094 migrating_ops=59128
-  u64 bad hash (64 values)     ops=75000 final_size=2088 migrating_ops=2195
-  string bad hash              ops=25000 final_size=1289 migrating_ops=419
-  u64 unmixed 13-value hash    ops=25000 final_size=970 migrating_ops=294
-  u64 growth 0..20M            n=5000000 cap=7864320 checks_during_migration=5
-  string growth 0..2M          n=500000 cap=983040 checks_during_migration=2
+  u64 small keyspace           ops=500000 final_size=190 migrating_ops=2945
+  u64 large keyspace           ops=750000 final_size=34527 migrating_ops=215466
+  string                       ops=250000 final_size=20095 migrating_ops=60013
+  u64 bad hash (64 values)     ops=75000 final_size=2086 migrating_ops=4925
+  string bad hash              ops=25000 final_size=1289 migrating_ops=1142
+  u64 unmixed 13-value hash    ops=25000 final_size=974 migrating_ops=1296
+  u64 growth 0..20M            n=5000000 cap=7864319 checks_during_migration=5
+  string growth 0..2M          n=500000 cap=983039 checks_during_migration=2
 PASS (0 failures)
-[asan_diff_nommap] rc=0
-[asan_api] 
-  growth: 20 capacity changes up to 7864320 slots
-test_api: PASS (0 failures)
-[asan_api] rc=0
-[x86_sse2_api] 
-  growth: 20 capacity changes up to 7864320 slots
-test_api: PASS (0 failures)
-[x86_sse2_api] rc=0
-[x86_sse2_diff] 108 0.05
-bflat test_diff seed=108 scale=0.05 grow_at_once_below=0 migrate_groups=1
-  u64 small keyspace           ops=100000 final_size=187 migrating_ops=1230
-  u64 large keyspace           ops=150000 final_size=21105 migrating_ops=51118
-  string                       ops=50000 final_size=11388 migrating_ops=10488
-  u64 bad hash (64 values)     ops=15000 final_size=2030 migrating_ops=1512
-  string bad hash              ops=5000 final_size=1031 migrating_ops=302
-  u64 unmixed 13-value hash    ops=5000 final_size=857 migrating_ops=274
-  u64 growth 0..20M            n=1000000 cap=1966080 checks_during_migration=6
-  string growth 0..2M          n=100000 cap=122880 checks_during_migration=2
+[asan_diff] PASS
+bflat test_review seed=1 scale=1.00 grow_at_once_below=2097152 migrate_groups=16
+  probe coverage: ok
+  size limits: ok
+  range insert: ok
+  allocator propagation: ok
+  throwing hash during migration: thrown=50 migrating=1
+  throwing hash during migration: thrown=0 migrating=0
+  throwing hash: ok (migrating=1)
+  iterator edges: ok
+  move-only values: ok
+  throwing move during migration: thrown=2000 size=107520
+  exception fuzz seed=21 keyspace=20: copy_throws=4088 alloc_throws=0 size=17
+  exception fuzz seed=22 keyspace=20: copy_throws=3913 alloc_throws=770 size=11
+  exception fuzz seed=30 keyspace=29: copy_throws=4095 alloc_throws=0 size=21
+  exception fuzz seed=31 keyspace=29: copy_throws=3778 alloc_throws=734 size=22
+  exception fuzz seed=31 keyspace=30: copy_throws=4194 alloc_throws=0 size=26
+  exception fuzz seed=32 keyspace=30: copy_throws=3858 alloc_throws=744 size=20
+  exception fuzz seed=46 keyspace=45: copy_throws=4225 alloc_throws=0 size=33
+  exception fuzz seed=47 keyspace=45: copy_throws=3992 alloc_throws=742 size=32
+  exception fuzz seed=61 keyspace=60: copy_throws=4129 alloc_throws=0 size=42
+  exception fuzz seed=62 keyspace=60: copy_throws=3910 alloc_throws=756 size=43
+  exception fuzz seed=301 keyspace=300: copy_throws=4341 alloc_throws=0 size=215
+  exception fuzz seed=302 keyspace=300: copy_throws=4137 alloc_throws=809 size=199
+  exception fuzz seed=20001 keyspace=20000: copy_throws=13318 alloc_throws=0 size=13818
+  exception fuzz seed=20002 keyspace=20000: copy_throws=12416 alloc_throws=2509 size=13947
+  exception fuzz seed=140001 keyspace=140000: copy_throws=16919 alloc_throws=0 size=94173
+  exception fuzz seed=140002 keyspace=140000: copy_throws=16031 alloc_throws=2787 size=93809
+  exception fuzz seed=400001 keyspace=400000: copy_throws=21684 alloc_throws=0 size=195478
+  exception fuzz seed=400002 keyspace=400000: copy_throws=20578 alloc_throws=3168 size=194717
+test_review: PASS (0 failures)
+[review] PASS
+bflat test_review seed=2 scale=0.50 grow_at_once_below=0 migrate_groups=2
+  probe coverage: ok
+  size limits: ok
+  range insert: ok
+  allocator propagation: ok
+  throwing hash during migration: thrown=50 migrating=1
+  throwing hash during migration: thrown=0 migrating=0
+  throwing hash: ok (migrating=1)
+  iterator edges: ok
+  move-only values: ok
+  throwing move during migration: thrown=6 size=53
+  exception fuzz seed=22 keyspace=20: copy_throws=2070 alloc_throws=0 size=13
+  exception fuzz seed=23 keyspace=20: copy_throws=1944 alloc_throws=359 size=14
+  exception fuzz seed=31 keyspace=29: copy_throws=2059 alloc_throws=0 size=24
+  exception fuzz seed=32 keyspace=29: copy_throws=1955 alloc_throws=390 size=20
+  exception fuzz seed=32 keyspace=30: copy_throws=2084 alloc_throws=0 size=25
+  exception fuzz seed=33 keyspace=30: copy_throws=1867 alloc_throws=385 size=19
+  exception fuzz seed=47 keyspace=45: copy_throws=2124 alloc_throws=0 size=34
+  exception fuzz seed=48 keyspace=45: copy_throws=1934 alloc_throws=375 size=36
+  exception fuzz seed=62 keyspace=60: copy_throws=2148 alloc_throws=0 size=46
+  exception fuzz seed=63 keyspace=60: copy_throws=1992 alloc_throws=396 size=42
+  exception fuzz seed=302 keyspace=300: copy_throws=2184 alloc_throws=0 size=209
+  exception fuzz seed=303 keyspace=300: copy_throws=2002 alloc_throws=425 size=196
+  exception fuzz seed=20002 keyspace=20000: copy_throws=6872 alloc_throws=0 size=13905
+  exception fuzz seed=20003 keyspace=20000: copy_throws=6569 alloc_throws=1288 size=13736
+  exception fuzz seed=140002 keyspace=140000: copy_throws=9818 alloc_throws=0 size=80110
+  exception fuzz seed=140003 keyspace=140000: copy_throws=9585 alloc_throws=1532 size=80234
+  exception fuzz seed=400002 keyspace=400000: copy_throws=11998 alloc_throws=0 size=127063
+  exception fuzz seed=400003 keyspace=400000: copy_throws=11571 alloc_throws=1581 size=126353
+test_review: PASS (0 failures)
+[review_tiers] PASS
+bflat test_review seed=3 scale=0.30 grow_at_once_below=0 migrate_groups=16
+  probe coverage: ok
+  size limits: ok
+  range insert: ok
+  allocator propagation: ok
+  throwing hash during migration: thrown=50 migrating=1
+  throwing hash during migration: thrown=0 migrating=0
+  throwing hash: ok (migrating=1)
+  iterator edges: ok
+  move-only values: ok
+  throwing move during migration: thrown=52 size=421
+  exception fuzz seed=23 keyspace=20: copy_throws=1243 alloc_throws=0 size=13
+  exception fuzz seed=24 keyspace=20: copy_throws=1157 alloc_throws=221 size=14
+  exception fuzz seed=32 keyspace=29: copy_throws=1213 alloc_throws=0 size=23
+  exception fuzz seed=33 keyspace=29: copy_throws=1067 alloc_throws=235 size=18
+  exception fuzz seed=33 keyspace=30: copy_throws=1261 alloc_throws=0 size=20
+  exception fuzz seed=34 keyspace=30: copy_throws=1198 alloc_throws=241 size=23
+  exception fuzz seed=48 keyspace=45: copy_throws=1269 alloc_throws=0 size=36
+  exception fuzz seed=49 keyspace=45: copy_throws=1195 alloc_throws=239 size=31
+  exception fuzz seed=63 keyspace=60: copy_throws=1352 alloc_throws=0 size=46
+  exception fuzz seed=64 keyspace=60: copy_throws=1206 alloc_throws=259 size=45
+  exception fuzz seed=303 keyspace=300: copy_throws=1339 alloc_throws=0 size=200
+  exception fuzz seed=304 keyspace=300: copy_throws=1188 alloc_throws=252 size=210
+  exception fuzz seed=20003 keyspace=20000: copy_throws=4453 alloc_throws=0 size=13843
+  exception fuzz seed=20004 keyspace=20000: copy_throws=4197 alloc_throws=792 size=13833
+  exception fuzz seed=140003 keyspace=140000: copy_throws=6721 alloc_throws=0 size=62743
+  exception fuzz seed=140004 keyspace=140000: copy_throws=6382 alloc_throws=931 size=62917
+  exception fuzz seed=400003 keyspace=400000: copy_throws=7515 alloc_throws=0 size=85207
+  exception fuzz seed=400004 keyspace=400000: copy_throws=7609 alloc_throws=1006 size=85012
+test_review: PASS (0 failures)
+[review_scalar] PASS
+bflat test_review seed=4 scale=0.25 grow_at_once_below=0 migrate_groups=3
+  probe coverage: ok
+  size limits: ok
+  range insert: ok
+  allocator propagation: ok
+  throwing hash during migration: thrown=50 migrating=1
+  throwing hash during migration: thrown=0 migrating=0
+  throwing hash: ok (migrating=1)
+  iterator edges: ok
+  move-only values: ok
+  throwing move during migration: thrown=3 size=53
+  exception fuzz seed=24 keyspace=20: copy_throws=1021 alloc_throws=0 size=12
+  exception fuzz seed=25 keyspace=20: copy_throws=982 alloc_throws=166 size=14
+  exception fuzz seed=33 keyspace=29: copy_throws=1038 alloc_throws=0 size=20
+  exception fuzz seed=34 keyspace=29: copy_throws=991 alloc_throws=195 size=23
+  exception fuzz seed=34 keyspace=30: copy_throws=1080 alloc_throws=0 size=21
+  exception fuzz seed=35 keyspace=30: copy_throws=967 alloc_throws=164 size=20
+  exception fuzz seed=49 keyspace=45: copy_throws=1043 alloc_throws=0 size=35
+  exception fuzz seed=50 keyspace=45: copy_throws=941 alloc_throws=176 size=32
+  exception fuzz seed=64 keyspace=60: copy_throws=1072 alloc_throws=0 size=43
+  exception fuzz seed=65 keyspace=60: copy_throws=1006 alloc_throws=177 size=39
+  exception fuzz seed=304 keyspace=300: copy_throws=1112 alloc_throws=0 size=196
+  exception fuzz seed=305 keyspace=300: copy_throws=1005 alloc_throws=205 size=217
+  exception fuzz seed=20004 keyspace=20000: copy_throws=3882 alloc_throws=0 size=13834
+  exception fuzz seed=20005 keyspace=20000: copy_throws=3641 alloc_throws=690 size=13669
+  exception fuzz seed=140004 keyspace=140000: copy_throws=5737 alloc_throws=0 size=56368
+  exception fuzz seed=140005 keyspace=140000: copy_throws=5359 alloc_throws=779 size=56551
+  exception fuzz seed=400004 keyspace=400000: copy_throws=6416 alloc_throws=0 size=73112
+  exception fuzz seed=400005 keyspace=400000: copy_throws=6349 alloc_throws=845 size=72848
+test_review: PASS (0 failures)
+[asan_review] PASS
+bflat test_diff seed=109 scale=0.25 grow_at_once_below=0 migrate_groups=5
+  u64 small keyspace           ops=500000 final_size=196 migrating_ops=1631
+  u64 large keyspace           ops=750000 final_size=23817 migrating_ops=137573
+  string                       ops=250000 final_size=8164 migrating_ops=34455
+  u64 bad hash (64 values)     ops=75000 final_size=739 migrating_ops=3142
+  string bad hash              ops=25000 final_size=1299 migrating_ops=207
+  u64 unmixed 13-value hash    ops=25000 final_size=970 migrating_ops=774
+  u64 growth 0..20M            n=5000000 cap=7864319 checks_during_migration=6
+  string growth 0..2M          n=500000 cap=983039 checks_during_migration=1
 PASS (0 failures)
-[x86_sse2_diff] rc=0
-[x86_avx2_diff] 109 0.05
-bflat test_diff seed=109 scale=0.05 grow_at_once_below=0 migrate_groups=16
-  u64 small keyspace           ops=100000 final_size=193 migrating_ops=0
-  u64 large keyspace           ops=150000 final_size=10924 migrating_ops=9560
-  string                       ops=50000 final_size=786 migrating_ops=1540
-  u64 bad hash (64 values)     ops=15000 final_size=2495 migrating_ops=64
-  string bad hash              ops=5000 final_size=1072 migrating_ops=17
-  u64 unmixed 13-value hash    ops=5000 final_size=904 migrating_ops=5
-  u64 growth 0..20M            n=1000000 cap=1966080 checks_during_migration=0
-  string growth 0..2M          n=100000 cap=122880 checks_during_migration=0
+[asan_diff_mmap] PASS
+bflat test_diff seed=108 scale=0.10 grow_at_once_below=0 migrate_groups=16
+  u64 small keyspace           ops=200000 final_size=200 migrating_ops=0
+  u64 large keyspace           ops=300000 final_size=10329 migrating_ops=24401
+  string                       ops=100000 final_size=15881 migrating_ops=4919
+  u64 bad hash (64 values)     ops=30000 final_size=2411 migrating_ops=250
+  string bad hash              ops=10000 final_size=1291 migrating_ops=62
+  u64 unmixed 13-value hash    ops=10000 final_size=950 migrating_ops=36
+  u64 growth 0..20M            n=2000000 cap=3932159 checks_during_migration=0
+  string growth 0..2M          n=200000 cap=245759 checks_during_migration=0
 PASS (0 failures)
-[x86_avx2_diff] rc=0
+[sse2_diff] PASS
+TIERED POLICY TESTS PASSED
+[tiered_policy] PASS
 ALLDONE

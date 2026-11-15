@@ -28,6 +28,12 @@ run diff_incremental tests/test_diff.cpp -DBFLAT_GROW_AT_ONCE_BELOW=0 -DBFLAT_MI
 run diff_scalar tests/test_diff.cpp -DBFLAT_NO_SIMD=1 -DBFLAT_GROW_AT_ONCE_BELOW=0 -- 105 0.3
 run asan_api tests/test_api.cpp -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer -DBFLAT_USE_MMAP=0
 run asan_diff tests/test_diff.cpp -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer -DBFLAT_USE_MMAP=0 -DBFLAT_GROW_AT_ONCE_BELOW=0 -DBFLAT_MIGRATE_GROUPS=3 -- 107 0.25
+run review tests/test_review.cpp -- 1 1
+run review_tiers tests/test_review.cpp -DBFLAT_GROW_AT_ONCE_BELOW=0 -DBFLAT_MIGRATE_GROUPS=2 '-DBFLAT_GROW_2X_BELOW=(64ULL<<10)' '-DBFLAT_GROW_1_5X_BELOW=(256ULL<<10)' '-DBFLAT_GROW_1_25X_BELOW=(1ULL<<20)' -- 2 0.5
+run review_scalar tests/test_review.cpp -DBFLAT_NO_SIMD=1 -DBFLAT_GROW_AT_ONCE_BELOW=0 -- 3 0.3
+# The mmap / page release path under the sanitizers (the asan_* runs above use BFLAT_USE_MMAP=0).
+run asan_review tests/test_review.cpp -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer -DBFLAT_GROW_AT_ONCE_BELOW=0 -DBFLAT_MIGRATE_GROUPS=3 '-DBFLAT_GROW_2X_BELOW=(4ULL<<20)' '-DBFLAT_GROW_1_5X_BELOW=(8ULL<<20)' '-DBFLAT_GROW_1_25X_BELOW=(16ULL<<20)' -- 4 0.25
+run asan_diff_mmap tests/test_diff.cpp -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer -DBFLAT_GROW_AT_ONCE_BELOW=0 -DBFLAT_MIGRATE_GROUPS=5 -- 109 0.25
 if [[ $(uname -m) == x86_64 ]]; then
  run sse2_diff tests/test_diff.cpp -msse2 -mno-avx -DBFLAT_GROW_AT_ONCE_BELOW=0 -- 108 0.1
 fi

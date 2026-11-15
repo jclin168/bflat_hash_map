@@ -1,0 +1,25 @@
+round=1 GROW map=base n=1000000 ins_nr_ns=69.11 cap=1966079 bpe=35.72 peak_bpe=39.73 max1_us=1707.7 b16_p999_us=101.23 b16_p9999_us=401.08 b16_max_us=1795.2
+round=1 OPS map=base n=1000000 ins_r_ns=25.56 cap=1142864 bpe=20.16 hit_ns=26.42 miss_ns=14.46 churn_ns=187.63 hit_after_churn_ns=28.89 bpe_after_churn=42.01 cap_after=2285729
+round=1 GROW map=fixed n=1000000 ins_nr_ns=66.20 cap=1966079 bpe=35.72 peak_bpe=39.85 max1_us=1662.5 b16_p999_us=102.37 b16_p9999_us=258.12 b16_max_us=1757.8
+round=1 OPS map=fixed n=1000000 ins_r_ns=25.32 cap=1142864 bpe=20.16 hit_ns=26.23 miss_ns=14.09 churn_ns=189.96 hit_after_churn_ns=28.81 bpe_after_churn=42.01 cap_after=2285729
+round=1 GROW map=base n=10000000 ins_nr_ns=67.10 cap=15728639 bpe=27.06 peak_bpe=28.11 max1_us=2177.9 b16_p999_us=57.40 b16_p9999_us=236.56 b16_max_us=2263.9
+round=1 OPS map=base n=10000000 ins_r_ns=47.30 cap=11428574 bpe=19.72 hit_ns=35.58 miss_ns=26.02 churn_ns=279.73 hit_after_churn_ns=32.76 bpe_after_churn=39.22 cap_after=22857149
+round=1 GROW map=fixed n=10000000 ins_nr_ns=66.56 cap=15728639 bpe=27.06 peak_bpe=28.11 max1_us=1564.6 b16_p999_us=46.84 b16_p9999_us=238.48 b16_max_us=1655.6
+round=1 OPS map=fixed n=10000000 ins_r_ns=47.84 cap=11428574 bpe=19.72 hit_ns=36.12 miss_ns=26.36 churn_ns=280.25 hit_after_churn_ns=32.49 bpe_after_churn=39.22 cap_after=22857149
+round=2 GROW map=base n=1000000 ins_nr_ns=66.96 cap=1966079 bpe=35.72 peak_bpe=39.85 max1_us=1676.0 b16_p999_us=101.93 b16_p9999_us=256.15 b16_max_us=1761.8
+round=2 OPS map=base n=1000000 ins_r_ns=25.91 cap=1142864 bpe=20.16 hit_ns=31.10 miss_ns=14.67 churn_ns=188.77 hit_after_churn_ns=28.30 bpe_after_churn=42.01 cap_after=2285729
+round=2 GROW map=fixed n=1000000 ins_nr_ns=66.41 cap=1966079 bpe=35.72 peak_bpe=39.85 max1_us=1674.8 b16_p999_us=101.87 b16_p9999_us=241.49 b16_max_us=1762.1
+round=2 OPS map=fixed n=1000000 ins_r_ns=25.46 cap=1142864 bpe=20.16 hit_ns=26.30 miss_ns=14.12 churn_ns=189.42 hit_after_churn_ns=27.99 bpe_after_churn=42.01 cap_after=2285729
+round=2 GROW map=base n=10000000 ins_nr_ns=66.52 cap=15728639 bpe=27.06 peak_bpe=28.11 max1_us=2253.9 b16_p999_us=46.49 b16_p9999_us=237.75 b16_max_us=2255.8
+round=2 OPS map=base n=10000000 ins_r_ns=47.55 cap=11428574 bpe=19.72 hit_ns=35.30 miss_ns=26.10 churn_ns=279.52 hit_after_churn_ns=32.86 bpe_after_churn=39.22 cap_after=22857149
+round=2 GROW map=fixed n=10000000 ins_nr_ns=66.39 cap=15728639 bpe=27.06 peak_bpe=28.10 max1_us=1630.1 b16_p999_us=46.67 b16_p9999_us=238.34 b16_max_us=1715.4
+round=2 OPS map=fixed n=10000000 ins_r_ns=47.07 cap=11428574 bpe=19.72 hit_ns=35.53 miss_ns=26.43 churn_ns=281.01 hit_after_churn_ns=32.05 bpe_after_churn=39.22 cap_after=22857149
+round=3 GROW map=base n=1000000 ins_nr_ns=66.11 cap=1966079 bpe=35.72 peak_bpe=39.92 max1_us=1664.1 b16_p999_us=101.65 b16_p9999_us=257.44 b16_max_us=1750.1
+round=3 OPS map=base n=1000000 ins_r_ns=25.66 cap=1142864 bpe=20.16 hit_ns=31.00 miss_ns=14.66 churn_ns=191.74 hit_after_churn_ns=28.39 bpe_after_churn=42.01 cap_after=2285729
+round=3 GROW map=fixed n=1000000 ins_nr_ns=66.19 cap=1966079 bpe=35.72 peak_bpe=39.85 max1_us=1665.4 b16_p999_us=101.86 b16_p9999_us=253.20 b16_max_us=1753.1
+round=3 OPS map=fixed n=1000000 ins_r_ns=26.01 cap=1142864 bpe=20.16 hit_ns=28.63 miss_ns=14.07 churn_ns=187.46 hit_after_churn_ns=28.04 bpe_after_churn=42.01 cap_after=2285729
+round=3 GROW map=base n=10000000 ins_nr_ns=66.44 cap=15728639 bpe=27.06 peak_bpe=28.11 max1_us=1674.6 b16_p999_us=46.69 b16_p9999_us=237.02 b16_max_us=1762.8
+round=3 OPS map=base n=10000000 ins_r_ns=46.93 cap=11428574 bpe=19.72 hit_ns=35.37 miss_ns=26.25 churn_ns=279.82 hit_after_churn_ns=32.60 bpe_after_churn=39.22 cap_after=22857149
+round=3 GROW map=fixed n=10000000 ins_nr_ns=66.09 cap=15728639 bpe=27.06 peak_bpe=28.11 max1_us=1552.1 b16_p999_us=46.87 b16_p9999_us=237.35 b16_max_us=1641.4
+round=3 OPS map=fixed n=10000000 ins_r_ns=47.11 cap=11428574 bpe=19.72 hit_ns=35.65 miss_ns=26.44 churn_ns=278.47 hit_after_churn_ns=31.77 bpe_after_churn=39.22 cap_after=22857149
+ALLDONE

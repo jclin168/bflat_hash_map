@@ -136,6 +136,10 @@
 
 namespace bflat {
 
+#if defined(BFLAT_STATS)
+inline size_t bflat_stats_refresh = 0;
+#endif
+
 // ---------------------------------------------------------- hash traits
 // A hash marked as avalanching is used as is; others are mixed with mulx
 // (as boost). Uses boost::hash_is_avalanching when Boost is available, else
@@ -805,7 +809,7 @@ class unordered_flat_map {
     free_old();
     if (ng_) {
       std::memset(static_cast<void*>(groups_), 0, ng_ * sizeof(group));
-      ml_ = initial_ml(ng_);
+      set_limits();
     }
     size_ = 0;
     reset_avail();
@@ -871,7 +875,7 @@ class unordered_flat_map {
   }
   float max_load_factor() const noexcept { return kMaxLoadFactor; }
   void max_load_factor(float) noexcept {}  // no effect, as in boost
-  size_type max_load() const noexcept { return ml_; }
+  size_type max_load() const noexcept { return ml_ < lim_ ? ml_ : lim_; }
 
   // boost semantics: at least n slots and at least size() / mlf; may shrink.
   // A migration is finished first; the rehash itself is done at once (in
@@ -920,8 +924,8 @@ class unordered_flat_map {
           if (find_ptr(e->first) != e) return false;
         }
     if (cnt != size_) return false;
-    if (size_ > ml_ && ng_ > 0) return false;
-    if (!ong_ && avail_ != (ml_ > size_ ? ml_ - size_ : 0)) return false;
+    if ((size_ > ml_ || size_ > lim_) && ng_ > 0) return false;
+    if (!ong_ && avail_ != std::min(ml_, lim_) - size_) return false;
     if (ong_ && avail_ != 0) return false;
     return true;
   }
@@ -980,7 +984,20 @@ class unordered_flat_map {
     if (ng <= 2) return cap;
     return static_cast<size_t>(static_cast<double>(kMaxLoadFactor) * static_cast<double>(cap));
   }
-  void reset_avail() noexcept { avail_ = (!ong_ && ml_ > size_) ? ml_ - size_ : 0; }
+  // lim_: the load limit (growth when the elements reach it). ml_: boost's
+  // anti-drift max load, but starting at lim_ plus a budget (sflat's used
+  // limit: 3/8 of the slots above the load limit); each erase from a group
+  // whose overflow bit for that element is set lowers it by one. When the
+  // elements reach ml_ below lim_, the overflow bytes are recomputed in
+  // place (no element moves) and ml_ is reset.
+  void set_limits() noexcept {
+    lim_ = initial_ml(ng_);
+    ml_ = lim_ + (ng_ * N - lim_) * 3 / 8;
+  }
+  void reset_avail() noexcept {
+    const size_t m = ml_ < lim_ ? ml_ : lim_;
+    avail_ = (!ong_ && m > size_) ? m - size_ : 0;
+  }
   static size_t table_bytes(size_t ng) noexcept { return ng * (N * sizeof(slot_type) + sizeof(group)); }
 
   // ------------------------------------------------------------- memory
@@ -1265,12 +1282,13 @@ class unordered_flat_map {
     if (ong_) {
       migrate_step(kMigrateGroups);
     } else if (avail_ == 0) {
-      // Growth (or first allocation). As boost, only for an absent key.
+      // Growth, first allocation or drift refresh. As boost, only for an
+      // absent key.
       size_t g;
       unsigned l;
       if (value_type* e = find_in(groups_, elems_, ng_, k, h, &g, &l))
         return {iterator(this, e, g * N + l), false};
-      grow();
+      make_room();
     }
     // Locate: current table, then the old table.
     {
@@ -1283,11 +1301,12 @@ class unordered_flat_map {
           return {iterator(this, e, ng_ * N + g * N + l), false};
       }
     }
-    if (BFLAT_UNLIKELY(size_ >= ml_)) {
-      // The current table is at its limit before the migration ended (only
-      // with a growth factor too small for the batch size): finish, grow.
+    if (BFLAT_UNLIKELY(size_ >= ml_ || size_ >= lim_)) {
+      // The current table is at its limit before the migration ended (rare:
+      // many erases from overflowed groups during the migration): finish,
+      // then grow or refresh.
       finish_migration();
-      grow();
+      make_room();
     }
     if (ong_) {
       size_t g;
@@ -1317,7 +1336,7 @@ class unordered_flat_map {
   // (erases from overflowed groups lowered the max load) and the current
   // capacity still fits, the table is rebuilt at the same size.
   size_t grown_groups() const {
-    const size_t need = groups_for_slots(slots_for(size_ + size_ / 61 + 1));
+    const size_t need = groups_for_slots(slots_for(size_ + 1));
     if (ng_ == 0) return need;
     if (need <= ng_) return ng_;
     const uint64_t bytes = table_bytes(ng_);
@@ -1331,6 +1350,42 @@ class unordered_flat_map {
       grown = kMaxGroups;
     }
     return static_cast<size_t>(grown);
+  }
+
+  // Not migrating, and no room: grow when the elements reach the load
+  // limit, else (anti-drift budget used up) recompute the overflow bytes.
+  void make_room() {
+    if (ng_ != 0 && size_ < lim_) {
+      refresh_overflow();
+      return;
+    }
+    grow();
+  }
+
+  // Recompute every overflow byte in place: clear them, then for each
+  // element outside its home group replay its probe sequence from the home
+  // group up to its group and mark the groups passed. The elements do not
+  // move; the stale bits that erased elements left behind are gone.
+  BFLAT_NOINLINE void refresh_overflow() noexcept {
+#if defined(BFLAT_STATS)
+    ++bflat_stats_refresh;
+#endif
+    for (size_t g = 0; g < ng_; ++g) groups_[g].m[N] = 0;
+    for (size_t g = 0; g < ng_; ++g) {
+      Mask m = groups_[g].match_occupied();
+      while (m) {
+        const unsigned l = group::lane(m);
+        const uint64_t h = hash_of(elem(elems_, g, l)->first);
+        detail::prober pb(detail::fastrange(h, ng_));
+        while (pb.pos != g) {
+          groups_[pb.pos].mark_overflow(h);
+          pb.next(ng_);
+        }
+        m &= m - 1;
+      }
+    }
+    set_limits();
+    reset_avail();
   }
 
   void grow() {
@@ -1356,7 +1411,7 @@ class unordered_flat_map {
       groups_ = ngr;
       elems_ = nel;
       ng_ = g;
-      ml_ = initial_ml(g);
+      set_limits();
       reset_avail();
       return;
     }
@@ -1369,7 +1424,7 @@ class unordered_flat_map {
     groups_ = ngr;
     elems_ = nel;
     ng_ = g;
-    ml_ = initial_ml(g);
+    set_limits();
     avail_ = 0;
     if (at_once) finish_migration();
     else migrate_step(kMigrateGroups);
@@ -1474,9 +1529,9 @@ class unordered_flat_map {
     destroy(elem(elems_, g, l));
     group& gr = groups_[g];
     if (gr.maybe_caused_overflow(l)) --ml_;
-    else if (!ong_) ++avail_;
     gr.reset(l);
     --size_;
+    if (!ong_) reset_avail();
   }
   void erase_old(size_t g, unsigned l) noexcept {
     destroy(elem(oelems_, g, l));
@@ -1517,6 +1572,7 @@ class unordered_flat_map {
     ng_ = 0;
     size_ = 0;
     ml_ = 0;
+    lim_ = 0;
     avail_ = 0;
     ogroups_ = nullptr;
     oelems_ = nullptr;
@@ -1534,6 +1590,7 @@ class unordered_flat_map {
     ng_ = o.ng_;
     size_ = o.size_;
     ml_ = o.ml_;
+    lim_ = o.lim_;
     avail_ = o.avail_;
     ogroups_ = o.ogroups_;
     oelems_ = o.oelems_;
@@ -1550,6 +1607,7 @@ class unordered_flat_map {
     swap(ng_, o.ng_);
     swap(size_, o.size_);
     swap(ml_, o.ml_);
+    swap(lim_, o.lim_);
     swap(avail_, o.avail_);
     swap(ogroups_, o.ogroups_);
     swap(oelems_, o.oelems_);
@@ -1607,6 +1665,7 @@ class unordered_flat_map {
       ng_ = o.ng_;
       size_ = o.size_;
       ml_ = o.ml_;
+      lim_ = o.lim_;
       reset_avail();
       return;
     }
@@ -1629,7 +1688,8 @@ class unordered_flat_map {
   size_t ong_ = 0;      // groups in the old table (!= 0 while migrating)
   size_t avail_ = 0;    // inserts left before the slow path (0 while migrating)
   size_t size_ = 0;     // elements in both tables
-  size_t ml_ = 0;       // max load of the current table (boost size_ctrl.ml)
+  size_t ml_ = 0;       // anti-drift max load (see set_limits)
+  size_t lim_ = 0;      // load limit of the current table
   group* ogroups_ = nullptr;
   slot_type* oelems_ = nullptr;
   size_t front_ = 0;          // first old group not migrated

@@ -1,0 +1,6 @@
+FIND n=1000000 map=bflat rounds=7 ins_r_ns=12.48 [12.01..15.58] hit_ns=20.71 [20.38..23.2] miss_ns=10.14 [9.89..10.6]
+FIND n=1000000 map=bflat_neonemu rounds=7 ins_r_ns=13.73 [12.78..16.65] hit_ns=21.15 [20.11..23.75] miss_ns=10.76 [10.56..11.11]
+FIND n=1000000 map=bflat_rhtable rounds=7 ins_r_ns=12.65 [11.82..17.14] hit_ns=19.85 [19.38..20.5] miss_ns=9.84 [9.68..10.08]
+FIND n=10000000 map=bflat rounds=7 ins_r_ns=32.79 [32..34.99] hit_ns=33.8 [33.27..35.07] miss_ns=23.11 [22.98..25.57]
+FIND n=10000000 map=bflat_neonemu rounds=7 ins_r_ns=35.78 [35.21..40.93] hit_ns=33.9 [33.38..35.28] miss_ns=25.45 [24.54..25.78]
+FIND n=10000000 map=bflat_rhtable rounds=7 ins_r_ns=35.19 [34.02..39.56] hit_ns=32.97 [32.36..35.38] miss_ns=22.91 [22.52..26.12]

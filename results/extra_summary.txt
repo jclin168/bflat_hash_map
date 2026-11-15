@@ -1,0 +1,8 @@
+FIND n=13762559 map=bflat rounds=3 ins_r_ns=37.12 [36.29..37.44] hit_ns=35.47 [33.95..35.6] miss_ns=24.79 [24.25..24.79]
+FIND n=13762559 map=bflat_nothp rounds=3 ins_r_ns=43.61 [41.73..47.34] hit_ns=35.03 [34.12..36.05] miss_ns=28.18 [27.78..29.49]
+FIND n=13762559 map=boost rounds=3 ins_r_ns=47.07 [46.27..55.78] hit_ns=34.42 [33.48..36.57] miss_ns=31.45 [30.91..32.65]
+FIND n=13762559 map=sflat rounds=3 ins_r_ns=40.56 [38.42..40.75] hit_ns=37.33 [35.34..37.98] miss_ns=30.82 [28.22..30.98]
+FIND n=50000000 map=bflat rounds=3 ins_r_ns=50.27 [49.01..51.12] hit_ns=38.87 [38.6..39.63] miss_ns=28.06 [27.83..28.2]
+FIND n=50000000 map=bflat_nothp rounds=3 ins_r_ns=83.77 [80.18..87.66] hit_ns=54.78 [53.73..57.33] miss_ns=33.53 [32.89..34.31]
+FIND n=50000000 map=boost rounds=3 ins_r_ns=88.77 [88.37..96.21] hit_ns=54.67 [53.55..55.92] miss_ns=30.61 [30.11..30.79]
+FIND n=50000000 map=sflat rounds=3 ins_r_ns=51.95 [51.49..54.22] hit_ns=39.55 [38.55..40.94] miss_ns=34.66 [33.69..35.27]

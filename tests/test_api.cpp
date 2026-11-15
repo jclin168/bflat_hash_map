@@ -48,13 +48,17 @@ struct SvEq {
   bool operator()(std::string_view a, std::string_view b) const { return a == b; }
 };
 
+size_t tiered_capacity(size_t n) {
+  const size_t slots = (n / 7) * 8 + ((n % 7) * 8 + 6) / 7;
+  return std::max<size_t>(2, slots / 15 + 1) * 15 - 1;
+}
+
 int main() {
-  // reserve: ceil(n / 0.875) slots rounded up to 15-slot groups.
+  // Exact group rounding with a sentinel; no power-of-two rounding.
   for (size_t n : {1ul, 14ul, 15ul, 16ul, 1000ul, 123457ul, 1000000ul, 10000000ul}) {
     bflat::unordered_flat_map<uint64_t, uint64_t> m;
     m.reserve(n);
-    const size_t slots = static_cast<size_t>(std::ceil(n / 0.875));
-    const size_t want = (slots + 14) / 15 * 15;
+    const size_t want = tiered_capacity(n);
     CHECK(m.bucket_count() == want);
     CHECK(m.max_load() >= n);
     // filling to n does not grow
@@ -63,7 +67,7 @@ int main() {
     CHECK(!m.is_migrating());
   }
 
-  // Growth sequence: tier factors by table bytes.
+  // Exercise each growth tier (thresholds may be lowered by the runner).
   {
     bflat::unordered_flat_map<uint64_t, uint64_t> m;
     size_t last = 0, changes = 0;
@@ -73,10 +77,13 @@ int main() {
       const size_t c = m.bucket_count();
       if (c != last) {
         if (last >= 30) {
-          const double bytes = last / 15.0 * (15 * 16 + 16);
-          const double f = static_cast<double>(c) / last;
-          const double want = bytes < (double)BFLAT_GROW_2X_BELOW ? 2.0
-                               : bytes < (double)BFLAT_GROW_1_5X_BELOW ? 1.5 : 1.25;
+          const size_t old_groups = (last + 1) / 15;
+          const size_t bytes = old_groups * 256;
+          const size_t divisor = bytes < BFLAT_GROW_2X_BELOW ? 1 :
+                                 bytes < BFLAT_GROW_1_5X_BELOW ? 2 :
+                                 bytes < BFLAT_GROW_1_25X_BELOW ? 4 : 8;
+          const double f = static_cast<double>((c + 1) / 15);
+          const double want = static_cast<double>(old_groups + (old_groups + divisor - 1) / divisor);
           if (std::fabs(f - want) > 0.01) {
             std::printf("  growth %zu -> %zu factor %.3f want %.2f\n", last, c, f, want);
             ok = false;
@@ -170,7 +177,7 @@ int main() {
     CHECK(!m.is_migrating() && m.size() == i && m.check_invariants());
     for (uint64_t k = 0; k < i; k += 2) m.erase(k);
     m.rehash(0);
-    CHECK(m.bucket_count() == (static_cast<size_t>(std::ceil(m.size() / 0.875)) + 14) / 15 * 15);
+    CHECK(m.bucket_count() == tiered_capacity(m.size()));
     CHECK(m.check_invariants());
   }
 

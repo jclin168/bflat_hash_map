@@ -1,2 +1,6 @@
 build/
-*.o
+results/
+tests/logs/
+tests/ankerl/corpus/
+tests/ankerl/replay
+tests/ankerl/replay-sanitized

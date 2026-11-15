@@ -181,8 +181,7 @@ int main() {
     CHECK(m.check_invariants());
   }
 
-  // Inserting a table's iteration order into an empty table (no seed, as
-  // boost): measure only.
+  // Copy entries in iteration order and verify the resulting map.
   {
     bflat::unordered_flat_map<uint64_t, uint64_t> a;
     for (uint64_t k = 0; k < 1000000; ++k) a.emplace(k * 0x9E3779B97F4A7C15ull, k);

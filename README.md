@@ -168,6 +168,42 @@ Capacity must also permit this entry.
 Headroom uses more initial memory and reduces the load factor.
 It does not prevent all future rehashes.
 
+### Iteration
+
+An iterator holds the map, the element, the metadata and first slot of its group, and a mask of the lanes after its own element.
+An increment reads the group metadata again, so it never visits an erased element.
+Within a group, and into the next non-empty group of the same table, it needs no map access and no division by 15.
+Empty groups, the end of a table, and the step into the old table of a migration use the map.
+This design reduced the per-element iteration cost from 9.5 ns to 1.8 ns.
+
+### Reseed
+
+Iteration visits a table in home-group order, and the home mapping is monotonic.
+If you insert the iteration order of a table into a smaller table with the same hash multiplier, the keys arrive sorted by home group.
+They fill the start of the table, each insertion probes the full groups before it, and the loop takes quadratic time.
+Boost has the same behavior.
+
+An insertion that probes `BFLAT_RESEED_STEPS` (64) groups past its home group marks a pile-up.
+Random keys probe at most about 20 groups at the load limit of a 10M table.
+The next insertion that reaches the slow path rebuilds the table with the next of 16 pre-screened multipliers.
+The rebuild keeps the capacity if the entries fit and follows the growth rules.
+During an incremental rebuild, the old table keeps its multiplier.
+A table rebuilds at most once for each doubling of its size.
+`clear()` returns a table to the initial multiplier.
+Tables start with the Boost multiplier, so capacity and iteration order do not change unless a pile-up occurs.
+
+Copying a 10M table in iteration order into an empty table took 31.3 s before this feature and 0.65 s after it, with `std::hash`.
+
+A table with an avalanching hash keeps the pile-up by default, because its hash is used unmixed.
+Build with `-DBFLAT_RESEED_AVALANCHING=1` to reseed these tables also.
+A reseeded table then mixes the hash with `mulx`.
+Its inline lookups still probe with the unmixed hash, so that other tables pay no test of the multiplier.
+A found key is the answer, and a miss is checked again with the mixed hash in a non-inline path.
+Every insertion takes the slow path.
+A branch on the multiplier before the probe cost 2.5% to 3% in a 10M insertion loop, so the design avoids it.
+With this option, the copy above takes 1.0 s with an avalanching hash.
+A reseeded avalanching table is slower but linear (10M keys: find hit 2.5x, miss 2.6x, insertion 1.4x, erase plus insertion 1.1x).
+
 ## Benchmark summary
 
 The tests used a Xeon Platinum 8573C processor and GCC 14.2.

@@ -1,10 +1,13 @@
 // API and edge cases of bflat::unordered_flat_map.
 #include <bflat/unordered_flat_map.hpp>
 
+#include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
+#include <random>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -47,6 +50,46 @@ struct SvEq {
   using is_transparent = void;
   bool operator()(std::string_view a, std::string_view b) const { return a == b; }
 };
+
+static double now_seconds() {
+  return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+
+struct IdentityHash {
+  using is_avalanching = void;
+  size_t operator()(uint64_t x) const noexcept { return static_cast<size_t>(x); }
+};
+
+// Time of inserting a's iteration order into an empty map, over the time of
+// inserting the same keys in a random order.
+template <typename H>
+double iteration_order_ratio(const std::vector<uint64_t>& keys) {
+  bflat::unordered_flat_map<uint64_t, uint64_t, H> a;
+  for (uint64_t k : keys) a.emplace(k, k);
+  std::vector<uint64_t> shuffled(keys);
+  std::mt19937_64 rng(1);
+  std::shuffle(shuffled.begin(), shuffled.end(), rng);
+  double t0 = now_seconds();
+  bflat::unordered_flat_map<uint64_t, uint64_t, H> b;
+  for (auto& kv : a) b[kv.first] = kv.second;
+  double t1 = now_seconds();
+  bflat::unordered_flat_map<uint64_t, uint64_t, H> c;
+  for (uint64_t k : shuffled) c[k] = k;
+  double t2 = now_seconds();
+  CHECK(a == b && b == c && b.check_invariants());
+  // Each key is found right after its insert (a reseed rebuilds the table
+  // during the insert), and the invariants hold at every power-of-two size.
+  bflat::unordered_flat_map<uint64_t, uint64_t, H> d;
+  bool found = true, inv = true;
+  for (auto& kv : a) {
+    d[kv.first] = kv.second;
+    found &= d.contains(kv.first);
+    if ((d.size() & (d.size() - 1)) == 0) inv &= d.check_invariants();
+  }
+  CHECK(found && inv);
+  std::printf("  iteration order insert: %.3f s, shuffled %.3f s\n", t1 - t0, t2 - t1);
+  return (t1 - t0) / (t2 - t1);
+}
 
 size_t tiered_capacity(size_t n) {
   const size_t slots = (n / 7) * 8 + ((n % 7) * 8 + 6) / 7;
@@ -181,14 +224,91 @@ int main() {
     CHECK(m.check_invariants());
   }
 
-  // Copy entries in iteration order and verify the resulting map.
+  // Insert the iteration order of a table into an empty table.
+  // The keys arrive in the home order of the source and pile up at the start
+  // of the smaller tables. Compare the time with the same keys shuffled.
   {
-    bflat::unordered_flat_map<uint64_t, uint64_t> a;
-    for (uint64_t k = 0; k < 1000000; ++k) a.emplace(k * 0x9E3779B97F4A7C15ull, k);
-    bflat::unordered_flat_map<uint64_t, uint64_t> b;
-    for (auto& kv : a) b[kv.first] = kv.second;
-    CHECK(a == b);
+    std::vector<uint64_t> keys;
+    for (uint64_t k = 0; k < 1000000; ++k) keys.push_back(k * 0x9E3779B97F4A7C15ull);
+    CHECK(iteration_order_ratio<std::hash<uint64_t>>(keys) < 4.0);
+    // An avalanching hash (no mixing) with random keys: reseeds unless
+    // BFLAT_RESEED_AVALANCHING=0 (checked for content either way).
+    std::mt19937_64 rng(7);
+    for (auto& k : keys) k = rng();
+    const double r = iteration_order_ratio<IdentityHash>(keys);
+    CHECK(!BFLAT_RESEED_AVALANCHING || r < 4.0);
+    // Ascending keys with an identity hash marked avalanching: every home is
+    // group 0 until a reseed mixes the hash. Against the random keys.
+    // (Quadratic with BFLAT_RESEED_AVALANCHING=0.)
+    if (BFLAT_RESEED_AVALANCHING) {
+      double t0 = now_seconds();
+      bflat::unordered_flat_map<uint64_t, uint64_t, IdentityHash> asc;
+      for (uint64_t k = 0; k < keys.size(); ++k) asc[k] = k;
+      double t1 = now_seconds();
+      bflat::unordered_flat_map<uint64_t, uint64_t, IdentityHash> rnd;
+      for (uint64_t k : keys) rnd[k] = k;
+      double t2 = now_seconds();
+      bool found = asc.size() == keys.size() && asc.check_invariants();
+      for (uint64_t k = 0; k < keys.size(); k += 97) found &= asc.find(k)->second == k;
+      CHECK(found && !asc.contains(keys.size()));
+      std::printf("  ascending identity: %.3f s, random %.3f s\n", t1 - t0, t2 - t1);
+      CHECK((t1 - t0) / (t2 - t1) < 4.0);
+    }
   }
+
+  // Erasing other elements while iterating: an erased element is not
+  // visited, every other one exactly once (also in the old table).
+  for (int migrating = 0; migrating < 2; ++migrating) {
+    bflat::unordered_flat_map<uint64_t, uint64_t> m;
+    uint64_t i = 0;
+    if (migrating) while (!m.is_migrating() || m.size() < 200000) m.emplace(i, i), ++i;
+    else for (; i < 5000; ++i) m.emplace(i, i);
+    CHECK(m.is_migrating() == (migrating != 0));
+    std::vector<char> state(i, 0);  // 1 visited, 2 erased
+    bool ok = true;
+    size_t n = 0;
+    for (auto it = m.begin(); it != m.end(); ++it, ++n) {
+      ok &= state[it->first] == 0;
+      state[it->first] = 1;
+      auto nx = it;
+      if (n % 3 == 0 && ++nx != m.end()) {
+        state[nx->first] = 2;
+        m.erase(nx->first);  // usually the next lane of the same group
+      }
+    }
+    for (char c : state) ok &= c != 0;
+    CHECK(ok && n == m.size());
+    m.finish_migration();
+    CHECK(m.check_invariants());
+  }
+
+#if !defined(__SANITIZE_ADDRESS__)
+  // Iteration cost per element of a map in the L2/L3 cache, against a scan
+  // of the same number of pairs in a vector.
+  {
+    bflat::unordered_flat_map<uint64_t, uint64_t> m;
+    std::mt19937_64 rng(3);
+    for (int k = 0; k < 30000; ++k) m[rng()] = k;
+    std::vector<std::pair<uint64_t, uint64_t>> v(m.begin(), m.end());
+    uint64_t sm = 0, sv = 0;
+    double tm = 1e9, tv = 1e9;
+    for (int r = 0; r < 20; ++r) {
+      double t0 = now_seconds();
+      for (int j = 0; j < 20; ++j)
+        for (auto& kv : m) sm += kv.second;
+      double t1 = now_seconds();
+      for (int j = 0; j < 20; ++j)
+        for (auto& kv : v) sv += kv.second;
+      double t2 = now_seconds();
+      tm = std::min(tm, t1 - t0);
+      tv = std::min(tv, t2 - t1);
+    }
+    CHECK(sm == sv);
+    std::printf("  iteration: %.2f ns per element, vector %.2f ns\n", tm / (20.0 * m.size()) * 1e9,
+                tv / (20.0 * m.size()) * 1e9);
+    CHECK(tm < 8 * tv);
+  }
+#endif
 
   std::printf("test_api: %s (%d failures)\n", g_fail ? "FAIL" : "PASS", g_fail);
   return g_fail ? 1 : 0;

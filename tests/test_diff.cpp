@@ -1,6 +1,6 @@
 // Randomized differential test: bflat::unordered_flat_map vs std::unordered_map.
 // Build variants with -DBFLAT_GROW_AT_ONCE_BELOW=0 (every growth is an
-// incremental migration), -DBFLAT_MIGRATE_GROUPS=1 (long migrations) and small
+// incremental migration) and -DBFLAT_MIGRATE_GROUPS=1 (long migrations).
 // Capacity growth uses arbitrary groups and configurable byte-size tiers.
 // Usage: test_diff [seed] [scale]
 #include <bflat/unordered_flat_map.hpp>

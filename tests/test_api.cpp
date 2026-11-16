@@ -224,9 +224,9 @@ int main() {
     CHECK(m.check_invariants());
   }
 
-  // Inserting a table's iteration order into an empty table: the keys
-  // arrive in the home order of the source and pile up at the start of the
-  // smaller tables of the growth. Bounded against the same keys shuffled.
+  // Insert the iteration order of a table into an empty table.
+  // The keys arrive in the home order of the source and pile up at the start
+  // of the smaller tables. Compare the time with the same keys shuffled.
   {
     std::vector<uint64_t> keys;
     for (uint64_t k = 0; k < 1000000; ++k) keys.push_back(k * 0x9E3779B97F4A7C15ull);

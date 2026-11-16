@@ -617,12 +617,23 @@ class unordered_flat_map {
   template <typename InputIt>
   unordered_flat_map(InputIt first, InputIt last, size_type n, const allocator_type& a)
       : unordered_flat_map(first, last, n, hasher(), key_equal(), a) {}
+  template <typename InputIt>
+  unordered_flat_map(InputIt first, InputIt last, size_type n,
+                     const hasher& h, const allocator_type& a)
+      : unordered_flat_map(first, last, n, h, key_equal(), a) {}
   unordered_flat_map(std::initializer_list<value_type> il, size_type n = 0,
                      const hasher& h = hasher(), const key_equal& eq = key_equal(),
                      const allocator_type& a = allocator_type())
       : unordered_flat_map(il.begin(), il.end(), n, h, eq, a) {}
   unordered_flat_map(std::initializer_list<value_type> il, const allocator_type& a)
       : unordered_flat_map(il.begin(), il.end(), 0, hasher(), key_equal(), a) {}
+
+  unordered_flat_map(std::initializer_list<value_type> il, size_type n,
+                     const allocator_type& a)
+      : unordered_flat_map(il, n, hasher(), key_equal(), a) {}
+  unordered_flat_map(std::initializer_list<value_type> il, size_type n,
+                     const hasher& h, const allocator_type& a)
+      : unordered_flat_map(il, n, h, key_equal(), a) {}
 
   unordered_flat_map(const unordered_flat_map& o)
       : unordered_flat_map(o, alloc_traits::select_on_container_copy_construction(o.al_)) {}
@@ -731,7 +742,7 @@ class unordered_flat_map {
   template <typename = void>
   BFLAT_FORCEINLINE std::pair<iterator, bool> insert(value_type&& v) {
     return insert_impl(v.first, [&](value_type* p) {
-      construct(p, std::move(const_cast<key_type&>(v.first)), std::move(v.second));
+      construct(p, std::move(v));
     });
   }
   BFLAT_FORCEINLINE std::pair<iterator, bool> insert(const init_type& v) {
@@ -1289,8 +1300,13 @@ class unordered_flat_map {
   // ------------------------------------------------------------- insert
   template <typename... Args>
   BFLAT_FORCEINLINE std::pair<iterator, bool> emplace_dispatch(Args&&... args) {
-    init_type tmp(std::forward<Args>(args)...);
-    return insert(std::move(tmp));
+    if constexpr (std::is_constructible<init_type, Args&&...>::value) {
+      init_type tmp(std::forward<Args>(args)...);
+      return insert(std::move(tmp));
+    } else {
+      value_type tmp(std::forward<Args>(args)...);
+      return insert(std::move(tmp));
+    }
   }
   template <typename K, typename V>
   BFLAT_FORCEINLINE std::pair<iterator, bool> emplace_dispatch(K&& k, V&& v) {
@@ -1305,9 +1321,11 @@ class unordered_flat_map {
   }
   BFLAT_FORCEINLINE std::pair<iterator, bool> emplace_dispatch(const value_type& v) { return insert(v); }
   BFLAT_FORCEINLINE std::pair<iterator, bool> emplace_dispatch(value_type&& v) { return insert(std::move(v)); }
+  BFLAT_FORCEINLINE std::pair<iterator, bool> emplace_dispatch(const value_type&& v) { return insert(v); }
   BFLAT_FORCEINLINE std::pair<iterator, bool> emplace_dispatch(value_type& v) { return insert(static_cast<const value_type&>(v)); }
   BFLAT_FORCEINLINE std::pair<iterator, bool> emplace_dispatch(const init_type& v) { return insert(v); }
   BFLAT_FORCEINLINE std::pair<iterator, bool> emplace_dispatch(init_type&& v) { return insert(std::move(v)); }
+  BFLAT_FORCEINLINE std::pair<iterator, bool> emplace_dispatch(const init_type&& v) { return insert(v); }
   BFLAT_FORCEINLINE std::pair<iterator, bool> emplace_dispatch(init_type& v) { return insert(static_cast<const init_type&>(v)); }
 
   template <typename K, typename F>
@@ -1390,6 +1408,32 @@ class unordered_flat_map {
   template <typename K, typename F>
   BFLAT_NOINLINE std::pair<iterator, bool> insert_slow(const K& k, uint64_t hh, F& make) {
     uint64_t h = exact(hh);
+    if constexpr (kGuess) {
+      // The inline hash can miss a key after a reseed.
+      size_t g;
+      unsigned l;
+      if (value_type* e = find_in(groups_, elems_, ng_, k, h, &g, &l))
+        return {make_iter(e, g, l), false};
+    }
+    if (ong_) {
+      size_t g;
+      unsigned l;
+      if (value_type* e = find_old(k, h, &g, &l))
+        return {make_iter(e, ng_ + g, l), false};
+    }
+    // Save the arguments before migration can move or release their source.
+    slot_type storage;
+    value_type* staged = reinterpret_cast<value_type*>(&storage);
+    make(staged);
+    auto cleanup = [this](value_type* p) { destroy(p); };
+    std::unique_ptr<value_type, decltype(cleanup)> guard(staged, cleanup);
+    auto place = [&](value_type* p) {
+      if constexpr (std::is_copy_constructible<key_type>::value)
+        construct(p, staged->first, std::move_if_noexcept(staged->second));
+      else
+        construct(p, std::move(const_cast<key_type&>(staged->first)),
+                  std::move_if_noexcept(staged->second));
+    };
     if (ong_) {
       migrate_step(kMigrateGroups);
     } else if (avail_ == 0 && !(kGuess && reseed_ == kGuessing && ml_ > size_)) {
@@ -1397,20 +1441,20 @@ class unordered_flat_map {
       // absent key.
       size_t g;
       unsigned l;
-      if (value_type* e = find_in(groups_, elems_, ng_, k, h, &g, &l))
+      if (value_type* e = find_in(groups_, elems_, ng_, staged->first, h, &g, &l))
         return {make_iter(e, g, l), false};
       const uint64_t mul = mul_;
       make_room();
-      if (BFLAT_UNLIKELY(mul_ != mul)) h = hash_of(k);  // reseeded
+      if (BFLAT_UNLIKELY(mul_ != mul)) h = hash_of(staged->first);  // reseeded
     }
     // Locate: current table, then the old table.
     {
       size_t g;
       unsigned l;
-      if (value_type* e = find_in(groups_, elems_, ng_, k, h, &g, &l))
+      if (value_type* e = find_in(groups_, elems_, ng_, staged->first, h, &g, &l))
         return {make_iter(e, g, l), false};
       if (ong_) {
-        if (value_type* e = find_old(k, h, &g, &l))
+        if (value_type* e = find_old(staged->first, h, &g, &l))
           return {make_iter(e, ng_ + g, l), false};
       }
     }
@@ -1421,14 +1465,14 @@ class unordered_flat_map {
       const uint64_t mul = mul_;
       finish_migration();
       make_room();
-      if (BFLAT_UNLIKELY(mul_ != mul)) h = hash_of(k);
+      if (BFLAT_UNLIKELY(mul_ != mul)) h = hash_of(staged->first);
     }
     if (ong_) {
       size_t g;
       unsigned l;
       if (place_old(h, g, l)) {
         value_type* e = elem(oelems_, g, l);
-        make(e);
+        place(e);
         ogroups_[g].set(l, detail::reduced_hash(h));
         ++size_;
         return {make_iter(e, ng_ + g, l), true};
@@ -1437,7 +1481,7 @@ class unordered_flat_map {
     size_t g;
     unsigned l;
     value_type* e = place_new(h, g, l);
-    make(e);
+    place(e);
     groups_[g].set(l, detail::reduced_hash(h));
     ++size_;
     reset_avail();

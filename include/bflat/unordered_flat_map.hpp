@@ -1031,9 +1031,11 @@ class unordered_flat_map {
     else return hh;
   }
   bool guessing() const noexcept { return kGuess && mul_ != 0; }
-  // A miss of the inline probe is final: no old table, exact hash.
+  // A miss of the inline probe is final: no old table, exact hash. With
+  // kGuess, avail_ != 0 implies both (one load, as ong_ == 0; a full or
+  // empty table then takes find_rest() for nothing).
   BFLAT_FORCEINLINE bool miss_final() const noexcept {
-    if constexpr (kGuess) return (ong_ | mul_) == 0;
+    if constexpr (kGuess) return avail_ != 0;
     else return ong_ == 0;
   }
   // reseed_ bits: a pile-up was seen (rebuild at the next slow insert); the
@@ -1635,12 +1637,20 @@ class unordered_flat_map {
         erase_old(g, l);
         return 1;
       }
-    } else if (BFLAT_UNLIKELY(!miss_final()) && find_rest(k, h, &g, &l)) {
-      if (g < ng_) erase_new(g, l);
-      else erase_old(g - ng_, l);
-      return 1;
+    } else if (BFLAT_UNLIKELY(!miss_final())) {
+      return erase_rest(k, h);
     }
     return 0;
+  }
+  // erase_key() after a miss of the inline probe (see find_rest()).
+  template <typename K>
+  BFLAT_NOINLINE size_t erase_rest(const K& k, uint64_t hh) {
+    size_t g;
+    unsigned l;
+    if (!find_rest(k, hh, &g, &l)) return 0;
+    if (g < ng_) erase_new(g, l);
+    else erase_old(g - ng_, l);
+    return 1;
   }
   void erase_at(const group* g, Mask r) noexcept {
     if (in_table(g, groups_, ng_)) erase_new(static_cast<size_t>(g - groups_), lane_of(r));

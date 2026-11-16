@@ -1,30 +1,30 @@
 [avalanching] PASS
 [avalanching_boost] PASS
   growth: 19 capacity changes up to 7864319 slots
-  iteration order insert: 0.078 s, shuffled 0.069 s
-  iteration order insert: 0.111 s, shuffled 0.077 s
-  ascending identity: 0.095 s, random 0.079 s
-  iteration: 3.74 ns per element, vector 0.76 ns
+  iteration order insert: 0.074 s, shuffled 0.061 s
+  iteration order insert: 0.097 s, shuffled 0.075 s
+  ascending identity: 0.072 s, random 0.077 s
+  iteration: 3.83 ns per element, vector 0.78 ns
 test_api: PASS (0 failures)
 [api] PASS
   growth: 57 capacity changes up to 7338974 slots
-  iteration order insert: 0.279 s, shuffled 0.246 s
-  iteration order insert: 0.302 s, shuffled 0.257 s
-  ascending identity: 0.252 s, random 0.265 s
-  iteration: 3.08 ns per element, vector 0.77 ns
+  iteration order insert: 0.244 s, shuffled 0.222 s
+  iteration order insert: 0.268 s, shuffled 0.241 s
+  ascending identity: 0.225 s, random 0.248 s
+  iteration: 3.10 ns per element, vector 0.77 ns
 test_api: PASS (0 failures)
 [api_tiers] PASS
   growth: 19 capacity changes up to 7864319 slots
-  iteration order insert: 0.076 s, shuffled 0.061 s
-  iteration order insert: 0.107 s, shuffled 0.080 s
-  ascending identity: 0.077 s, random 0.081 s
-  iteration: 3.76 ns per element, vector 0.77 ns
+  iteration order insert: 0.073 s, shuffled 0.058 s
+  iteration order insert: 0.090 s, shuffled 0.069 s
+  ascending identity: 0.069 s, random 0.075 s
+  iteration: 3.69 ns per element, vector 0.74 ns
 test_api: PASS (0 failures)
 [api_incremental] PASS
   growth: 19 capacity changes up to 7864319 slots
-  iteration order insert: 0.080 s, shuffled 0.068 s
-  iteration order insert: 0.819 s, shuffled 0.071 s
-  iteration: 3.74 ns per element, vector 0.77 ns
+  iteration order insert: 0.072 s, shuffled 0.059 s
+  iteration order insert: 0.740 s, shuffled 0.061 s
+  iteration: 3.68 ns per element, vector 0.75 ns
 test_api: PASS (0 failures)
 [api_no_reseed_aval] PASS
 bflat test_diff seed=101 scale=1.00 grow_at_once_below=2097152 migrate_groups=16
@@ -61,15 +61,15 @@ bflat test_diff seed=105 scale=0.30 grow_at_once_below=0 migrate_groups=16
 PASS (0 failures)
 [diff_scalar] PASS
   growth: 19 capacity changes up to 7864319 slots
-  iteration order insert: 0.527 s, shuffled 0.492 s
-  iteration order insert: 0.578 s, shuffled 0.497 s
-  ascending identity: 0.546 s, random 0.484 s
+  iteration order insert: 0.498 s, shuffled 0.474 s
+  iteration order insert: 0.543 s, shuffled 0.472 s
+  ascending identity: 0.517 s, random 0.466 s
 test_api: PASS (0 failures)
 [asan_api] PASS
   growth: 19 capacity changes up to 7864319 slots
-  iteration order insert: 0.474 s, shuffled 0.466 s
-  iteration order insert: 0.558 s, shuffled 0.461 s
-  ascending identity: 0.541 s, random 0.483 s
+  iteration order insert: 0.535 s, shuffled 0.519 s
+  iteration order insert: 0.559 s, shuffled 0.491 s
+  ascending identity: 0.537 s, random 0.487 s
 test_api: PASS (0 failures)
 [asan_api_incremental] PASS
 bflat test_diff seed=107 scale=0.25 grow_at_once_below=0 migrate_groups=3

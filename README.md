@@ -72,8 +72,9 @@ inline lookups still probe with the unmixed hash, so that no table pays a
 test of the multiplier (a branch on it before the probe cost 2.5-3% in a
 10M insert loop, a multiply by a per-table odd constant 2.5%): a key found
 that way is the key, a miss is checked again with the mixed hash in a
-noinline path (behind the test of the old table, which now also reads the
-multiplier), and every insert takes the slow path. A reseeded table of such
+noinline path (behind a test of `avail_`, which is 0 in such a table and
+during a migration, in place of the test of the old table), and every
+insert takes the slow path. A reseeded table of such
 a hash is slower (10M keys: find hit 2.5x, miss 2.6x, insert 1.4x,
 erase+insert 1.1x) but linear; `clear()` returns a table to the initial
 multiplier. `BFLAT_RESEED_AVALANCHING=0` keeps the pile-up for avalanching

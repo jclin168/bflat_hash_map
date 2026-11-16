@@ -77,8 +77,9 @@ during a migration, in place of the test of the old table), and every
 insert takes the slow path. A reseeded table of such
 a hash is slower (10M keys: find hit 2.5x, miss 2.6x, insert 1.4x,
 erase+insert 1.1x) but linear; `clear()` returns a table to the initial
-multiplier. `BFLAT_RESEED_AVALANCHING=0` keeps the pile-up for avalanching
-hashes instead (the previous default). Copying a 10M table in iteration
+multiplier. This is off by default (`BFLAT_RESEED_AVALANCHING=0`: an
+avalanching hash keeps the pile-up, as before); build with
+`-DBFLAT_RESEED_AVALANCHING=1` to enable it. Copying a 10M table in iteration
 order into an empty one takes 1.0 s with an avalanching hash (0.67 s mixed,
 31.7 s before); a xor seed instead of mulx does not help (38 s): it maps the
 run of keys with the same top bits to another such run. A table rebuilds at most once per

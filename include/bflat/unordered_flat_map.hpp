@@ -83,9 +83,10 @@ static_assert(BFLAT_GROW_2X_BELOW <= BFLAT_GROW_1_5X_BELOW &&
 #endif
 // 1: a table with an avalanching hash (used unmixed) reseeds too, by mixing
 // the hash from then on; its lookups keep the unmixed hash and take the slow
-// path when that misses (see hot_hash()). 0: such a table keeps the pile-up.
+// path when that misses (see hot_hash()). 0 (default): such a table keeps the
+// pile-up.
 #if !defined(BFLAT_RESEED_AVALANCHING)
-#define BFLAT_RESEED_AVALANCHING 1
+#define BFLAT_RESEED_AVALANCHING 0
 #endif
 // NEON match: 1 = cmeq + shrn #4 (4 bits per lane, sflat style),
 // 0 = boost's movemask emulation (vand + vzip + vaddv).

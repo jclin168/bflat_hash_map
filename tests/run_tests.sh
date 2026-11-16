@@ -47,4 +47,24 @@ if [[ -n ${BOOST_INCLUDE_DIR:-} ]]; then
 else
  echo '[tiered_policy] SKIP: set BOOST_INCLUDE_DIR to Boost 1.92 headers' | tee -a "$OUT"
 fi
+run sflat_group tests/test_sflat_group.cpp
+run sflat_group_scalar tests/test_sflat_group.cpp -DBFLAT_NO_SIMD=1
+run asan_sflat_group tests/test_sflat_group.cpp -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer
+run sflat_interface tests/test_sflat_interface.cpp
+run sflat_emplace tests/test_sflat_emplace.cpp
+run sflat_copy tests/test_sflat_copy.cpp
+run sflat_stress tests/test_sflat_stress.cpp
+run sflat_emplace_incremental tests/test_sflat_emplace.cpp -DBFLAT_GROW_AT_ONCE_BELOW=0 -DBFLAT_MIGRATE_GROUPS=1
+run sflat_copy_incremental tests/test_sflat_copy.cpp -DBFLAT_GROW_AT_ONCE_BELOW=0 -DBFLAT_MIGRATE_GROUPS=1
+run sflat_stress_incremental tests/test_sflat_stress.cpp -DBFLAT_GROW_AT_ONCE_BELOW=0 -DBFLAT_MIGRATE_GROUPS=1
+run sflat_stress_scalar tests/test_sflat_stress.cpp -DBFLAT_NO_SIMD=1 -DBFLAT_GROW_AT_ONCE_BELOW=0 -DBFLAT_MIGRATE_GROUPS=1
+for suite in interface emplace copy stress; do
+ run "asan_sflat_$suite" "tests/test_sflat_$suite.cpp" -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer -DBFLAT_USE_MMAP=0 -DBFLAT_GROW_AT_ONCE_BELOW=0 -DBFLAT_MIGRATE_GROUPS=1
+done
+run sflat_lifecycle tests/test_sflat_lifecycle.cpp
+run sflat_lifecycle_incremental tests/test_sflat_lifecycle.cpp -DBFLAT_GROW_AT_ONCE_BELOW=0 -DBFLAT_MIGRATE_GROUPS=1
+run sflat_lifecycle_scalar tests/test_sflat_lifecycle.cpp -DBFLAT_NO_SIMD=1 -DBFLAT_GROW_AT_ONCE_BELOW=0 -DBFLAT_MIGRATE_GROUPS=1
+run asan_sflat_lifecycle tests/test_sflat_lifecycle.cpp -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer -DBFLAT_USE_MMAP=0 -DBFLAT_GROW_AT_ONCE_BELOW=0 -DBFLAT_MIGRATE_GROUPS=1
+run sflat_emplace_reseed tests/test_sflat_emplace.cpp -DBFLAT_RESEED_AVALANCHING=1 -DBFLAT_RESEED_STEPS=8 -DBFLAT_GROW_AT_ONCE_BELOW=0 -DBFLAT_MIGRATE_GROUPS=1
+run asan_sflat_emplace_reseed tests/test_sflat_emplace.cpp -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer -DBFLAT_USE_MMAP=0 -DBFLAT_RESEED_AVALANCHING=1 -DBFLAT_RESEED_STEPS=8 -DBFLAT_GROW_AT_ONCE_BELOW=0 -DBFLAT_MIGRATE_GROUPS=1
 echo ALLDONE | tee -a "$OUT"

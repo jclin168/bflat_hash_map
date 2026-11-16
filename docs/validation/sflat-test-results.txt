@@ -1,0 +1,68 @@
+Compiler: GCC 14.2
+Platform: x86-64
+Boost: 1.92
+Base: 4aa8c391bec45f6b253618276e9ae0d0508849a5
+
+Full suite:
+[avalanching] PASS
+[avalanching_boost] PASS
+[api] PASS
+[api_tiers] PASS
+[api_incremental] PASS
+[api_reseed_aval] PASS
+[api_reseed_aval_incremental] PASS
+[diff] PASS
+[diff_incremental] PASS
+[diff_scalar] PASS
+[asan_api] PASS
+[asan_api_incremental] PASS
+[asan_diff] PASS
+[review] PASS
+[review_reseed_aval] PASS
+[asan_review_reseed_aval] PASS
+[review_tiers] PASS
+[review_scalar] PASS
+[asan_review] PASS
+[asan_diff_mmap] PASS
+[sse2_diff] PASS
+[tiered_policy] PASS
+[sflat_group] PASS
+[sflat_group_scalar] PASS
+[asan_sflat_group] PASS
+[sflat_interface] PASS
+[sflat_emplace] PASS
+[sflat_copy] PASS
+[sflat_stress] PASS
+[sflat_emplace_incremental] PASS
+[sflat_copy_incremental] PASS
+[sflat_stress_incremental] PASS
+[sflat_stress_scalar] PASS
+[asan_sflat_interface] PASS
+[asan_sflat_emplace] PASS
+[asan_sflat_copy] PASS
+[asan_sflat_stress] PASS
+[sflat_lifecycle] PASS
+[sflat_lifecycle_incremental] PASS
+[sflat_lifecycle_scalar] PASS
+[asan_sflat_lifecycle] PASS
+[sflat_emplace_reseed] PASS
+[asan_sflat_emplace_reseed] PASS
+
+Final exact-lookup change:
+The final branch applies only to avalanching-reseed types.
+Nine affected or extended configurations were rechecked.
+Review rechecks select the guess and hashreseed cases.
+[api_reseed_aval] PASS
+[api_reseed_aval_incremental] PASS
+[review_reseed_aval] PASS
+[asan_review_reseed_aval] PASS
+[sflat_emplace] PASS
+[sflat_emplace_incremental] PASS
+[asan_sflat_emplace] PASS
+[sflat_emplace_reseed] PASS
+[asan_sflat_emplace_reseed] PASS
+
+Ankerl default release: 1089 cases PASS
+Ankerl default ASan/UBSan: 1089 cases PASS
+
+Final header SHA256: 5b6e600fd846a6bf29f8772a06a35fde4a2d3962b2e2556ffd81f1e1e254c689

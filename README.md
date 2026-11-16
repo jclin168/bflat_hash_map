@@ -250,7 +250,8 @@ With headroom, bflat kept a capacity of 257,142,869 slots.
 With exact reserve, bflat grew from 228,571,439 to 285,714,299 slots during churn.
 RSS and VM peaks can occur at different times.
 The [memory report](docs/validation/memory-200M.md) gives more conditions and results.
-These memory and operation-time measurements were made before the exception-safety review fixes.
+These measurements apply to the recorded version.
+Later correctness fixes are not included in the measurements.
 
 ## Validation
 
@@ -279,6 +280,12 @@ This result covers the two corpus workloads.
 It does not cover the full upstream test suite or continuous fuzzing.
 See [validation records](docs/validation) for sources and results.
 
+## Additional test coverage
+
+Tests adapted from sflat check pair insertion, copy behavior, structured keys, churn, and SIMD metadata.
+They also check single-pass ranges, migration operations, and the common map interface against `std::unordered_map`.
+The [coverage report](docs/tests/sflat-coverage.md) lists source cases and design differences.
+
 ## Technical terms
 
 | Term | Meaning in this project |
@@ -301,3 +308,4 @@ See [validation records](docs/validation) for sources and results.
 
 The [Boost Software License](LICENSE) applies to bflat.
 The [MIT license](tests/ankerl/LICENSE) applies to the bundled Ankerl test dependencies.
+The [Apache license](tests/sflat/LICENSE) applies to tests adapted from sflat.
